@@ -1,20 +1,21 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class CardDetailPanel : MonoBehaviour
 {
     public static CardDetailPanel Instance;
 
     [Header("UI Areas")]
-    public Transform leftArea;   // CardUIを置く場所
-    public Text nameText;
-    public Text costText;
-    public Text typeText;        // ★ タイプ用を追加
-    public Text descriptionText;
+    public Transform leftArea;
+    public TMP_Text nameText;
+    public TMP_Text costText;
+    public TMP_Text typeText;
+    public TMP_Text descriptionText;
     public Button closeButton;
 
     [Header("Prefabs")]
-    public GameObject cardUIPrefab; // ← 捨て札と同じUIカードPrefab
+    public GameObject cardUIPrefab;
 
     private GameObject currentCardUI;
 
@@ -26,7 +27,7 @@ public class CardDetailPanel : MonoBehaviour
             return;
         }
         Instance = this;
-        gameObject.SetActive(false); // ← 最初は非表示でもOK
+        gameObject.SetActive(false);
         if (closeButton != null)
             closeButton.onClick.AddListener(Hide);
     }
@@ -35,19 +36,16 @@ public class CardDetailPanel : MonoBehaviour
     {
         if (data == null) return;
 
-        // 左エリアの既存を削除
         if (currentCardUI != null) Destroy(currentCardUI);
 
-        // 新しくCardUIを生成
         if (cardUIPrefab != null && leftArea != null)
         {
             currentCardUI = Instantiate(cardUIPrefab, leftArea);
-            currentCardUI.transform.localScale = Vector3.one * 1.0f; // 大きく表示
+            currentCardUI.transform.localScale = Vector3.one * 1.0f;
             var ui = currentCardUI.GetComponent<CardUI>();
             if (ui != null) ui.SetCard(data, 1);
         }
 
-        // 右側にテキストを大きく反映
         if (nameText != null) nameText.text = data.name;
         if (costText != null) costText.text = $" {data.cost}";
         if (typeText != null) typeText.text = $"Type: {data.type}";
@@ -61,5 +59,4 @@ public class CardDetailPanel : MonoBehaviour
         if (currentCardUI != null) Destroy(currentCardUI);
         gameObject.SetActive(false);
     }
-
 }

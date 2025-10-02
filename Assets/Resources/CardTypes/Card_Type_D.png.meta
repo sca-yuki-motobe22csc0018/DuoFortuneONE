@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 1ecc025b77ea5d041a1916f2ec0f9ef9
+guid: 8bfda12a2131ae74686b57a8bf73e146
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3841505910471094267
-    second: Card_Type_D_0
+      213: -5871817745734127113
+    second: D_Frame(kari)_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -109,17 +109,30 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Card_Type_D_0
+      name: D_Frame(kari)_0
       rect:
         serializedVersion: 2
-        x: 5
-        y: 5
-        width: 640
-        height: 898
+        x: 0
+        y: 0
+        width: 630
+        height: 880
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +141,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: bff613cb545cf4530800000000000000
-      internalID: 3841505910471094267
+      spriteID: 7f1bea7dedc138ea0800000000000000
+      internalID: -5871817745734127113
       vertices: []
       indices: 
       edges: []
@@ -148,7 +161,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Card_Type_D_0: 3841505910471094267
+      D_Frame(kari)_0: -5871817745734127113
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

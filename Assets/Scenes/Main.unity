@@ -1421,7 +1421,7 @@ MonoBehaviour:
   drawButton: {fileID: 719391601}
   increaseManaButton: {fileID: 1338012657}
   endTurnButton: {fileID: 22378973}
-  turnInfoText: {fileID: 954314573}
+  turnInfoText: {fileID: 0}
   initialHandCount: 5
   initialLifeCount: 3
 --- !u!4 &510557139
@@ -6520,8 +6520,8 @@ MonoBehaviour:
   m_text: "\u30FB\u81EA\u5206\u306E\u30BF\u30FC\u30F3\u306A\u3089\u3001\n   \u81EA\u5206\u306E[\u30A8\u30CD\u30EB\u30AE\u30FC]\u306E\u6700\u5927\u5024\u3092[2]\u6E1B\u3089\u3059\u3002\r\n\u30FB[Defence]\r\n\u30FB\u6B21\u306E\u25CE\u304B\u3089[3]\u56DE\u9078\u3093\u3067\u4F7F\u7528\u3059\u308B\u3002\r\n  
     (\u540C\u3058\u3082\u306E\u30922\u56DE\u307E\u3067\u9078\u3093\u3067\u3082\u826F\u3044\u3002)\r\n\u25CE[\u5C71\u672D]\u304B\u3089[2]\u679A\u5F15\u304F\u3002\r\n\u25CE\u76F8\u624B\u306E[\u624B\u672D]\u3092[1]\u679A\u898B\u306A\u3044\u3067\u9078\u3073\u3001[\u624B\u672D]\u306B\u52A0\u3048\u308B\u3002\r\n\u25CE[\u6368\u3066\u672D\u30BE\u30FC\u30F3]\u304B\u3089[1]\u679A\u52A0\u3048\u308B\u3002\r\n\u25CE\u81EA\u5206\u306E[\u30A8\u30CD\u30EB\u30AE\u30FC]\u3092[2]\u56DE\u5FA9\u3059\u308B\u3002"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
-  m_sharedMaterial: {fileID: 8916309357934955450, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 0560e3398dc47de4d863ecbd7b77a1c5, type: 2}
+  m_sharedMaterial: {fileID: 8916309357934955450, guid: 0560e3398dc47de4d863ecbd7b77a1c5, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -6635,7 +6635,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxMana: 2
   currentMana: 0
-  energyText: {fileID: 794959769}
+  energyText: {fileID: 0}
   handManager: {fileID: 1290459494}
   lifeManager: {fileID: 929182294}
 --- !u!1 &1607810159
@@ -7072,8 +7072,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   leftArea: {fileID: 533543627}
   nameText: {fileID: 0}
-  costText: {fileID: 876494944}
-  typeText: {fileID: 214878776}
+  costText: {fileID: 0}
+  typeText: {fileID: 0}
   descriptionText: {fileID: 0}
   closeButton: {fileID: 124658152}
   cardUIPrefab: {fileID: 507064939415283640, guid: 9e453a53ecfc9dd4a91cda0cb6b3c0b1, type: 3}
@@ -7320,7 +7320,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxMana: 2
   currentMana: 0
-  energyText: {fileID: 1417357964}
+  energyText: {fileID: 0}
   handManager: {fileID: 806172054}
   lifeManager: {fileID: 1423208695}
 --- !u!4 &1739838357
@@ -7372,13 +7372,13 @@ MonoBehaviour:
   gridParent: {fileID: 1623437685}
   cardDisplayPrefab: {fileID: 507064939415283640, guid: 9e453a53ecfc9dd4a91cda0cb6b3c0b1, type: 3}
   closeButton: {fileID: 1355059122}
-  discardMessage: {fileID: 1465725431}
+  discardMessage: {fileID: 0}
   completeButton: {fileID: 1927236202}
   confirmPanel: {fileID: 1008506820}
   confirmListParent: {fileID: 1090955799}
   confirmCardPrefab: {fileID: 507064939415283640, guid: 9e453a53ecfc9dd4a91cda0cb6b3c0b1, type: 3}
-  confirmMessage: {fileID: 415503209}
-  recoverLimitText: {fileID: 1313588711}
+  confirmMessage: {fileID: 0}
+  recoverLimitText: {fileID: 0}
   recoverZonePanel: {fileID: 1168468424}
   recoverZoneParent: {fileID: 1425662420}
   cardPlayablePrefab: {fileID: 507064939415283640, guid: 1b16b855deafea94e8f7d582f1f919e1, type: 3}

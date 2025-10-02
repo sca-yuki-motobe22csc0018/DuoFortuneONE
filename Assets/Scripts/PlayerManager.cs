@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 public class PlayerManager : MonoBehaviour
 {
@@ -8,11 +8,11 @@ public class PlayerManager : MonoBehaviour
     public int currentMana;
 
     [Header("UI")]
-    public Text energyText;
+    public TMP_Text energyText;
 
     [Header("References")]
-    public HandManager handManager;   // èDŠÇ—
-    public LifeManager lifeManager;   // ƒ‰ƒCƒtŠÇ—
+    public HandManager handManager;
+    public LifeManager lifeManager;
 
     void Start()
     {
@@ -20,9 +20,6 @@ public class PlayerManager : MonoBehaviour
         UpdateEnergyUI();
     }
 
-    /// <summary>
-    /// ƒ}ƒi‚ğÁ”ï
-    /// </summary>
     public bool SpendMana(int amount)
     {
         if (currentMana >= amount)
@@ -31,31 +28,22 @@ public class PlayerManager : MonoBehaviour
             UpdateEnergyUI();
             return true;
         }
-        Debug.Log("ƒ}ƒi‚ª‘«‚è‚Ü‚¹‚ñI");
+        Debug.Log("ãƒãƒŠãŒè¶³ã‚Šã¾ã›ã‚“ï¼");
         return false;
     }
 
-    /// <summary>
-    /// ƒ}ƒi‚ğ‘‚â‚·iÅ‘å’l‚Í maxMana ‚Ü‚Åj
-    /// </summary>
     public void GainMana(int amount)
     {
         currentMana = Mathf.Min(currentMana + amount, maxMana);
         UpdateEnergyUI();
     }
 
-    /// <summary>
-    /// ƒ}ƒi‚ğÅ‘å‚Ü‚Å‰ñ•œ
-    /// </summary>
     public void ResetMana()
     {
         currentMana = maxMana;
         UpdateEnergyUI();
     }
 
-    /// <summary>
-    /// Å‘åƒ}ƒi‚ğ‘‚â‚·
-    /// </summary>
     public void IncreaseMaxMana(int amount)
     {
         maxMana += amount;
@@ -65,14 +53,10 @@ public class PlayerManager : MonoBehaviour
     public void IncreaseMaxManaOnly(int amount)
     {
         maxMana += amount;
-        // Œ»İ’l‚Í•Ï‚¦‚È‚¢ix•¥‚¢Œã‚Ì’l‚ğ•Û‚·‚éj
         currentMana = Mathf.Min(currentMana, maxMana);
         UpdateEnergyUI();
     }
 
-    /// <summary>
-    /// ‰ŠúèD‚ğˆø‚­
-    /// </summary>
     public void DrawInitialHand(DeckManager deckManager, int count)
     {
         if (deckManager == null || handManager == null) return;
@@ -83,12 +67,8 @@ public class PlayerManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// UI ‚ÌXV
-    /// </summary>
     public void UpdateEnergyUI()
     {
-        Debug.Log("ManaUpdate");
         if (energyText != null)
         {
             energyText.text = $"{currentMana}/{maxMana}";

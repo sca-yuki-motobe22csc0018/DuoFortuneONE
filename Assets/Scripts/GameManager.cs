@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -16,14 +17,14 @@ public class GameManager : MonoBehaviour
     public Button drawButton;
     public Button increaseManaButton;
     public Button endTurnButton;
-    public Text turnInfoText;   // šƒ^[ƒ“•\Ž¦—p
+    public TMP_Text turnInfoText;
 
     [Header("Initial Settings")]
     public int initialHandCount = 5;
     public int initialLifeCount = 3;
 
     private PlayerManager currentPlayer;
-    private int turnNumber = 1; // šƒ^[ƒ“”ƒJƒEƒ“ƒ^[
+    private int turnNumber = 1;
 
     void Start()
     {
@@ -60,7 +61,7 @@ public class GameManager : MonoBehaviour
         }
 
         currentPlayer = player1;
-        turnNumber = 1; // Å‰‚Ìƒ^[ƒ“
+        turnNumber = 1; // æœ€åˆã®ã‚¿ãƒ¼ãƒ³
         StartTurn(currentPlayer);
     }
 
@@ -68,13 +69,13 @@ public class GameManager : MonoBehaviour
     {
         currentPlayer = player;
 
-        // š Ž©•ª‚Ìƒ^[ƒ“ŠJŽnŽž‚Éƒ}ƒi‚ð‘S‰ñ•œ
+        // è‡ªåˆ†ã®ã‚¿ãƒ¼ãƒ³é–‹å§‹æ™‚ã«ãƒžãƒŠã‚’å…¨å›žå¾©
         currentPlayer.ResetMana();
 
         endTurnButton.interactable = true;
         turnChoicePanel.SetActive(true);
 
-        // šƒ^[ƒ“”‚ÆƒvƒŒƒCƒ„[‚ðUI‚É”½‰f
+        // ã‚¿ãƒ¼ãƒ³æ•°ã¨ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’UIã«åæ˜ 
         if (turnInfoText != null)
         {
             turnInfoText.text = $"Turn {turnNumber}: {player.name}";
@@ -114,7 +115,7 @@ public class GameManager : MonoBehaviour
             currentPlayer.ResetMana();
         }
 
-        Debug.Log($"ƒ^[ƒ“I—¹€”õŠ®—¹: {currentPlayer.name}");
+        Debug.Log($"ã‚¿ãƒ¼ãƒ³çµ‚äº†æº–å‚™å®Œäº†: {currentPlayer.name}");
 
         endTurnButton.interactable = false;
 
@@ -125,7 +126,7 @@ public class GameManager : MonoBehaviour
     {
         currentPlayer = (currentPlayer == player1) ? player2 : player1;
 
-        // šPlayer1‚Ìƒ^[ƒ“‚ª—ˆ‚é‚½‚Ñ‚Éƒ^[ƒ“”‚ði‚ß‚é
+        // Player1ã®ã‚¿ãƒ¼ãƒ³ãŒæ¥ã‚‹ãŸã³ã«ã‚¿ãƒ¼ãƒ³æ•°ã‚’é€²ã‚ã‚‹
         if (currentPlayer == player1)
         {
             turnNumber++;
@@ -133,6 +134,7 @@ public class GameManager : MonoBehaviour
 
         StartTurn(currentPlayer);
     }
+
     public bool IsMyTurn(PlayerManager p)
     {
         return currentPlayer == p;

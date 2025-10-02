@@ -1,6 +1,7 @@
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using TMPro;
 
 public enum CardUISource
 {
@@ -13,13 +14,13 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     [Header("UI Components")]
     public Image cardImage;
     public Image typeImage;
-    public Text nameText;
-    public Text costText;
-    public Text countText;
-    public Text textText;
+    public TMP_Text nameText;
+    public TMP_Text costText;
+    public TMP_Text countText;
+    public TMP_Text textText;
 
-    [Header("‘I‘ğƒnƒCƒ‰ƒCƒg˜g")]
-    [SerializeField] private Image highlightFrame; // ˜g—pImageiRaycast Target OFFA‰Šú‚Ídisabledj
+    [Header("é¸æŠãƒã‚¤ãƒ©ã‚¤ãƒˆæ ")]
+    [SerializeField] private Image highlightFrame; 
 
     private CardGenerator.CardData cardData;
     private DiscardManager discardManager;
@@ -28,15 +29,11 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     private bool pointerHeld;
     private bool longPressTriggered;
 
-    [Header("’·‰Ÿ‚µ”»’èŠÔ(•b)")]
+    [Header("é•·æŠ¼ã—åˆ¤å®šæ™‚é–“(ç§’)")]
     public float longPressThreshold = 0.5f;
 
-    // ©•ª‚ª‘®‚·‚éƒ][ƒ“
     public CardUISource sourceZone = CardUISource.DiscardZone;
 
-    /// <summary>
-    /// ƒJ[ƒhUI‚Ì“à—e‚ğƒZƒbƒg
-    /// </summary>
     public void SetCard(CardGenerator.CardData data, int count = 1, DiscardManager manager = null, CardUISource zone = CardUISource.DiscardZone)
     {
         cardData = data;
@@ -60,10 +57,10 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
         if (countText)
         {
             countText.gameObject.SetActive(count > 1);
-            countText.text = "~" + count;
+            countText.text = "Ã—" + count;
         }
 
-        SetHighlight(false); // ‰Šú‚Í˜gOFF
+        SetHighlight(false);
     }
 
     public void OnPointerDown(PointerEventData eventData)
@@ -75,17 +72,14 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        // ’·‰Ÿ‚µ–¢”­“® ¨ ’Z‰Ÿ‚µˆµ‚¢
         if (!longPressTriggered && discardManager != null && discardManager.IsRecoverMode)
         {
             if (sourceZone == CardUISource.DiscardZone)
             {
-                // Ì‚ÄDƒ][ƒ“ ¨ ‰ñûƒ][ƒ“
                 discardManager.MoveCardToRecover(cardData);
             }
             else if (sourceZone == CardUISource.RecoverZone)
             {
-                // ‰ñûƒ][ƒ“ ¨ Ì‚ÄDƒ][ƒ“
                 discardManager.MoveCardBackToDiscard(cardData);
             }
         }
@@ -106,7 +100,6 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
             if (held >= longPressThreshold)
             {
                 longPressTriggered = true;
-                // š ’·‰Ÿ‚µ‚ÅÚ×•\¦i‰ñûƒ‚[ƒh‚Å‚à’Êí‚Å‚àOKj
                 if (cardData != null && CardDetailPanel.Instance != null)
                 {
                     CardDetailPanel.Instance.Show(cardData);

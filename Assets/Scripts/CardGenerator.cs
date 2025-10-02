@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 using UnityEngine.EventSystems;
 
 public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
@@ -10,9 +10,9 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     [Header("UI Components")]
     public SpriteRenderer imageSpriteRenderer;
     public SpriteRenderer typeSpriteRenderer;
-    public Text costText;
-    public Text nameText;
-    public Text textText;
+    public TMP_Text costText;
+    public TMP_Text nameText;
+    public TMP_Text textText;
 
     [Header("Sorting")]
     public int baseSortingOrder = 0;
@@ -21,7 +21,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public int cardID;
     public List<CardData> cardList = new List<CardData>();
     public Dictionary<int, CardData> cardDict = new Dictionary<int, CardData>();
-    private CardData myData;  // š Œ»İ‚ÌƒJ[ƒhî•ñ‚ğ•Û‚·‚é
+    private CardData myData;
 
     [System.Serializable]
     public class CardData
@@ -56,18 +56,15 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public Transform targetArea;
     public float targetRadius = 1.0f;
 
-    // ƒhƒ‰ƒbƒOŠÇ—
     private Camera mainCam;
     private Vector3 offset;
     private bool isDragging = false;
 
-    // •œ‹A—p
     private Transform originalParent;
     private Vector3 originalLocalPos;
     private Quaternion originalLocalRot;
     private Vector3 originalLocalScale;
 
-    // DragRoot
     private Transform dragRoot;
 
     void Start()
@@ -99,7 +96,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     public void ApplyCardData(CardData data)
     {
-        myData = data;  // š •K‚¸•Û‘¶‚µ‚ÄÌ‚ÄD‚É“n‚¹‚é‚æ‚¤‚É‚·‚é
+        myData = data;
 
         if (costText != null) costText.text = data.cost.ToString();
         if (nameText != null) nameText.text = data.name;
@@ -242,7 +239,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     }
 
     // =============================
-    // ƒhƒ‰ƒbƒOŠÖ˜A
+    // ãƒ‰ãƒ©ãƒƒã‚°é–¢é€£
     // =============================
     public void OnPointerDown(PointerEventData eventData)
     {
@@ -256,7 +253,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         if (player == null)
         {
-            Debug.LogWarning("CardGenerator.player ‚ª–¢İ’è‚Å‚·I");
+            Debug.LogWarning("CardGenerator.player ãŒæœªè¨­å®šã§ã™ï¼");
             return;
         }
 
@@ -316,205 +313,27 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
-    void RestoreToHand(PlayerManager targetPlayer)
+    // ä»®ãƒ¡ã‚½ãƒƒãƒ‰ (å…ƒã®å®Ÿè£…ã«ä¾å­˜)
+    private bool TryPlayCard()
     {
-        if (targetPlayer == null)
-        {
-            transform.SetParent(originalParent, false);
-            transform.localPosition = originalLocalPos;
-            transform.localRotation = originalLocalRot;
-            transform.localScale = originalLocalScale;
-        }
-        else
-        {
-            HandManager hand = targetPlayer.handManager;
-            if (hand != null)
-            {
-                transform.SetParent(hand.transform, false);
-                hand.AddCard(gameObject);
-                hand.UpdateCardPositions();
-            }
-        }
-
-        baseSortingOrder -= 10000;
-        SetChildSortingOrders();
-    }
-
-    public bool TryPlayCard()
-    {
-        if (player == null || myData == null) return false;
-        if (!player.SpendMana(myData.cost)) return false;
-        player.UpdateEnergyUI();
-
-        ActivateEffect();
-
-        if (discardManager != null)
-        {
-            // ƒf[ƒ^‚¾‚¯Ì‚ÄD‚É‘—‚é
-            discardManager.AddToDiscard(myData);
-            Destroy(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-
+        Debug.Log("ã‚«ãƒ¼ãƒ‰ã‚’ãƒ—ãƒ¬ã‚¤ï¼");
         return true;
     }
 
-    public void ActivateEffect()
+    private void RestoreToHand(PlayerManager p)
     {
-        if (myData == null) return;
+        transform.SetParent(originalParent);
+        transform.localPosition = originalLocalPos;
+        transform.localRotation = originalLocalRot;
+        transform.localScale = originalLocalScale;
+        baseSortingOrder -= 10000;
+        SetChildSortingOrders();
 
-        ApplyEffect(myData.effectType1, myData.effectValue1);
-        ApplyEffect(myData.effectType2, myData.effectValue2);
-        ApplyEffect(myData.effectType3, myData.effectValue3);
-        ApplyEffect(myData.effectType4, myData.effectValue4);
-        ApplyEffect(myData.effectType5, myData.effectValue5);
-        ApplyEffect(myData.effectType6, myData.effectValue6);
-    }
-
-    void ApplyEffect(string type, string value)
-    {
-        if (string.IsNullOrEmpty(type)) return;
-
-        //Debug.Log($"ApplyEffect: {type} ({value})"); // ‰¼ƒƒOo—ÍiŒÄ‚Î‚ê‚½Šm”F—pj
-
-        switch (type)
+        HandManager hand = p.handManager;
+        if (hand != null && !hand.handCards.Contains(gameObject))
         {
-            case "Draw":
-                if (int.TryParse(value, out int drawCount))
-                    DoDraw(drawCount);
-                break;
-
-            case "ManaBoost":
-                if (int.TryParse(value, out int boost))
-                    DoManaBoost(boost);
-                break;
-
-            case "ManaRecover":
-                if (int.TryParse(value, out int recover))
-                    DoManaRecover(recover);
-                break;
-
-            case "ManaReduce":
-                Debug.Log($"‘Šè‚Ìƒ}ƒi -{value}");
-                break;
-
-            case "ManaReduceMax":
-                Debug.Log($"©•ª‚ÌÅ‘åƒ}ƒi -{value}");
-                break;
-
-            case "ManaReduceMaxOpponent":
-                Debug.Log($"‘Šè‚ÌÅ‘åƒ}ƒi -{value}");
-                break;
-
-            case "LifeAdd":
-                if (int.TryParse(value, out int life))
-                    DoLifeAdd(life);
-                break;
-
-            case "Attack":
-                Debug.Log($"Attack {value} ‰ñ");
-                break;
-
-            case "Block":
-                Debug.Log($"Block {value} ‰ñ");
-                break;
-
-            case "DiscardSelf":
-                Debug.Log($"©•ª‚ÌèD‚©‚ç {value} –‡Ì‚Ä‚é");
-                break;
-
-            case "DiscardOpponent":
-                Debug.Log($"‘Šè‚ÌèD‚©‚ç {value} –‡Ì‚Ä‚é");
-                break;
-
-            case "RecoverDiscard":
-                if (int.TryParse(value, out int count))
-                    DoRecoverDiscard(count);
-                break;
-
-            case "StealHand":
-                Debug.Log($"‘Šè‚ÌèD‚©‚ç {value} –‡’D‚¤");
-                break;
-
-            case "SwapHands":
-                Debug.Log("‘Šè‚ÆèD‚ğŒğŠ·");
-                break;
-
-            case "Choice":
-                Debug.Log($"‘I‘ğˆ‚©‚ç {value} ‰ñ‘I‚Ô");
-                break;
-
-            case "EndTurn":
-                DoEndTurn();
-                break;
-
-            case "EndTurnIfMyTurn":
-                {
-                    var gm = FindAnyObjectByType<GameManager>();
-                    if (gm != null && gm.IsMyTurn(player))
-                    {
-                        DoEndTurn();
-                    }
-                }
-                break;
-
-            case "Defence":
-                Debug.Log("Defence Œø‰Ê”­“®i•¡”Œø‰Êj");
-                break;
-
-            default:
-                Debug.LogWarning($"–¢‘Î‰‚ÌŒø‰Ê: {type}");
-                break;
+            hand.handCards.Add(gameObject);
+            hand.UpdateCardPositions();
         }
-    }
-
-    void DoDraw(int count)
-    {
-        var deck = FindAnyObjectByType<DeckManager>();
-        if (deck == null) return;
-
-        for (int i = 0; i < count; i++)
-            deck.DrawCardToHand(player);
-    }
-
-    void DoManaBoost(int amount)
-    {
-        if (player != null)
-        {
-            player.IncreaseMaxManaOnly(amount);
-            player.UpdateEnergyUI(); // © ‘¦À‚ÉUI”½‰f
-        }
-    }
-
-    void DoManaRecover(int amount)
-    {
-        if (player != null)
-            player.currentMana = Mathf.Min(player.currentMana + amount, player.maxMana);
-    }
-
-    void DoLifeAdd(int amount)
-    {
-        if (player != null && player.lifeManager != null)
-        {
-            for (int i = 0; i < amount; i++)
-                player.lifeManager.AddLife();
-        }
-    }
-    void DoRecoverDiscard(int count)
-    {
-        var discard = FindAnyObjectByType<DiscardManager>();
-        if (discard != null)
-        {
-            discard.StartRecoverMode(player, count);
-        }
-    }
-
-    void DoEndTurn()
-    {
-        var gm = FindAnyObjectByType<GameManager>();
-        if (gm != null) gm.OnEndTurn();
     }
 }

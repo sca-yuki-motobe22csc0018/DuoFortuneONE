@@ -1,27 +1,28 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
+using TMPro;
 
-public class CardUIDetail : MonoBehaviour, IPointerClickHandler
+public class CardUIDetail : MonoBehaviour
 {
     private CardGenerator.CardData cardData;
+
+    public TMP_Text nameText;
+    public TMP_Text typeText;
+    public TMP_Text costText;
+    public TMP_Text rarityText;
+    public TMP_Text descriptionText;
 
     public void Init(CardGenerator.CardData data)
     {
         cardData = data;
+        if (nameText != null) nameText.text = data.name;
+        if (typeText != null) typeText.text = data.type;
+        if (costText != null) costText.text = data.cost.ToString();
+        if (rarityText != null) rarityText.text = data.rarity;
+        if (descriptionText != null) descriptionText.text = data.text;
     }
 
-    public void OnPointerClick(PointerEventData eventData)
+    public CardGenerator.CardData GetData()
     {
-        // š ‰ñûƒ‚[ƒh’†‚Í’Z‰Ÿ‚µ‚ÅÚ×‚ğŠJ‚©‚È‚¢
-        var dm = FindAnyObjectByType<DiscardManager>();
-        if (dm != null && dm.IsRecoverMode) return;
-
-        if (cardData == null)
-        {
-            Debug.LogError("cardData is NULL!");
-            return;
-        }
-        CardDetailPanel.Instance?.Show(cardData);
+        return cardData;
     }
-
 }

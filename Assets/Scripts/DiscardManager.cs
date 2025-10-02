@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 public class DiscardManager : MonoBehaviour
 {
@@ -14,41 +14,35 @@ public class DiscardManager : MonoBehaviour
     public Transform gridParent;
     public GameObject cardDisplayPrefab;
     public GameObject closeButton;
-    public Text discardMessage; // © DiscardUIPanel “à‚É’u‚­ƒeƒLƒXƒg
-    private Coroutine discardMessageRoutine; // •\¦’†ƒRƒ‹[ƒ`ƒ“
+    public TMP_Text discardMessage;
+    private Coroutine discardMessageRoutine;
 
-    [Header("‰ñû—pUI")]
+    [Header("å›åç”¨UI")]
     public GameObject completeButton;
     public GameObject confirmPanel;
     public Transform confirmListParent;
     public GameObject confirmCardPrefab;
-    public Text confirmMessage;
-    public Text recoverLimitText;
+    public TMP_Text confirmMessage;
+    public TMP_Text recoverLimitText;
 
-    [Header("‰ñûƒ][ƒ“UI")]
-    public GameObject recoverZonePanel;   // © ScrollView –{‘Ìi‰Šú‚Í”ñ•\¦‚É‚µ‚Ä‚¨‚­j
-    public Transform recoverZoneParent;   // © Content •”•ª
+    [Header("å›åã‚¾ãƒ¼ãƒ³UI")]
+    public GameObject recoverZonePanel;
+    public Transform recoverZoneParent;
 
-    [Header("ƒvƒŒƒC—pPrefab")]
+    [Header("ãƒ—ãƒ¬ã‚¤ç”¨Prefab")]
     public GameObject cardPlayablePrefab;
 
-    [Header("ScrollView ƒTƒCƒYEˆÊ’u’²®")]
+    [Header("ScrollView ã‚µã‚¤ã‚ºãƒ»ä½ç½®èª¿æ•´")]
     public RectTransform discardScrollView;
-
-    // ’Êí
     public Vector2 normalSize = new Vector2(0, 600);
     public Vector2 normalPos = new Vector2(0, 0);
-
-    // ‰ñûƒ‚[ƒh
     public Vector2 recoverSize = new Vector2(0, 300);
     public Vector2 recoverPos = new Vector2(0, 150);
-
 
     private bool isOpen = false;
     private bool isRecoverMode = false;
     private int recoverCount = 0;
     private PlayerManager recoverTargetPlayer;
-
     private List<CardGenerator.CardData> selectedCards = new List<CardGenerator.CardData>();
 
     public bool IsRecoverMode => isRecoverMode;
@@ -58,277 +52,178 @@ public class DiscardManager : MonoBehaviour
         if (fullViewPanel != null) fullViewPanel.SetActive(false);
         if (completeButton != null) completeButton.SetActive(false);
         if (confirmPanel != null) confirmPanel.SetActive(false);
-        if (recoverZonePanel != null) recoverZonePanel.SetActive(false); // © ‰Šú‚Í”ñ•\¦
-        if (recoverLimitText != null) recoverLimitText.gameObject.SetActive(false); // © ’Ç‰Á
+        if (recoverZonePanel != null) recoverZonePanel.SetActive(false);
+        if (recoverLimitText != null) recoverLimitText.gameObject.SetActive(false);
     }
 
-    // Ì‚ÄD‚É’Ç‰Á
     public void AddToDiscard(CardGenerator.CardData data)
     {
-        if (data == null) return;
         discardDataList.Add(data);
-        if (isOpen) BuildFullView();
+        BuildFullView();
     }
 
-    // Ì‚ÄDˆê——‚ÌŠJ•Â
-    public void OnDiscardClicked()
+    public void BuildFullView()
     {
-        isOpen = !isOpen;
-        if (fullViewPanel == null || gridParent == null || cardDisplayPrefab == null) return;
+        if (gridParent == null || cardDisplayPrefab == null) return;
 
-        fullViewPanel.SetActive(isOpen);
-        if (isOpen) BuildFullView();
-        else ClearFullView();
-    }
+        foreach (Transform child in gridParent)
+        {
+            Destroy(child.gameObject);
+        }
 
-    private void BuildFullView()
-    {
-        ClearFullView();
-
-        var grouped = discardDataList
-            .Where(d => d != null)
-            .GroupBy(d => d.id)
-            .OrderBy(g => g.Key);
-
+        var grouped = discardDataList.GroupBy(c => c.id);
         foreach (var g in grouped)
         {
-            var data = g.First();
-            int count = g.Count();
-
-            GameObject ui = Instantiate(cardDisplayPrefab, gridParent);
-
-            var cardUI = ui.GetComponent<CardUI>();
-            if (cardUI != null)
-                cardUI.SetCard(data, count, this, CardUISource.DiscardZone);
-
-            var detail = ui.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
+            GameObject obj = Instantiate(cardDisplayPrefab, gridParent);
+            CardUI ui = obj.GetComponent<CardUI>();
+            if (ui != null)
+            {
+                ui.SetCard(g.First(), g.Count(), this, CardUISource.DiscardZone);
+            }
         }
     }
 
-    private void ClearFullView()
+    public void OpenDiscardPanel()
     {
-        for (int i = gridParent.childCount - 1; i >= 0; i--)
-        {
-            Destroy(gridParent.GetChild(i).gameObject);
-        }
+        if (fullViewPanel != null) fullViewPanel.SetActive(true);
+        isOpen = true;
+        BuildFullView();
     }
 
-    public void CloseDiscard()
+    public void CloseDiscardPanel()
     {
+        if (fullViewPanel != null) fullViewPanel.SetActive(false);
         isOpen = false;
-        if (fullViewPanel != null)
-            fullViewPanel.SetActive(false);
-        ClearFullView();
     }
 
-    // ‰ñûƒ‚[ƒhŠJn
     public void StartRecoverMode(PlayerManager player, int count)
     {
-        isRecoverMode = true;
-        recoverCount = count;
         recoverTargetPlayer = player;
+        recoverCount = count;
+        isRecoverMode = true;
         selectedCards.Clear();
 
-        if (completeButton) completeButton.SetActive(true);
-        if (closeButton) closeButton.SetActive(false);
-        if (confirmPanel) confirmPanel.SetActive(false);
-
+        if (completeButton != null) completeButton.SetActive(true);
+        if (recoverZonePanel != null) recoverZonePanel.SetActive(true);
         if (recoverLimitText != null)
         {
-            recoverLimitText.gameObject.SetActive(true); // © •\¦
-            recoverLimitText.text = $"‰ñû‚Å‚«‚é–‡”F{recoverCount}";
+            recoverLimitText.gameObject.SetActive(true);
+            recoverLimitText.text = $"å›åä¸Šé™: {recoverCount}";
         }
-
-        if (recoverZonePanel != null)
-            recoverZonePanel.SetActive(true);
 
         if (discardScrollView != null)
         {
             discardScrollView.sizeDelta = recoverSize;
             discardScrollView.anchoredPosition = recoverPos;
         }
-
-        fullViewPanel.SetActive(true);
-        BuildFullView();
-        BuildRecoverZone();
     }
 
-
-    // ‰ñûƒ][ƒ“\’z
-    private void BuildRecoverZone()
-    {
-        foreach (Transform child in recoverZoneParent)
-            Destroy(child.gameObject);
-
-        var grouped = selectedCards
-            .Where(d => d != null)
-            .GroupBy(d => d.id)
-            .OrderBy(g => g.Key);
-
-        foreach (var g in grouped)
-        {
-            var data = g.First();
-            int count = g.Count();
-
-            GameObject ui = Instantiate(cardDisplayPrefab, recoverZoneParent);
-            var cardUI = ui.GetComponent<CardUI>();
-            if (cardUI != null)
-                cardUI.SetCard(data, count, this, CardUISource.RecoverZone);
-
-            var detail = ui.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
-        }
-    }
-
-    // Ì‚ÄD ¨ ‰ñû
-    public void MoveCardToRecover(CardGenerator.CardData data)
-    {
-        var toRemove = discardDataList.FirstOrDefault(d => d.id == data.id);
-        if (toRemove != null)
-        {
-            discardDataList.Remove(toRemove);
-            selectedCards.Add(toRemove);
-
-            BuildFullView();
-            BuildRecoverZone();
-        }
-    }
-
-    // ‰ñû ¨ Ì‚ÄD
-    public void MoveCardBackToDiscard(CardGenerator.CardData data)
-    {
-        var toRemove = selectedCards.FirstOrDefault(d => d != null && d.id == data.id);
-        if (toRemove != null)
-        {
-            selectedCards.Remove(toRemove);
-            discardDataList.Add(toRemove);
-
-            BuildFullView();
-            BuildRecoverZone();
-        }
-    }
-
-    // Š®—¹ƒ{ƒ^ƒ“
-    public void OnCompleteButton()
-    {
-        if (confirmPanel == null) return;
-
-        if (selectedCards.Count > recoverCount)
-        {
-            // š Œx‚ğˆê•\¦
-            ShowDiscardWarning($"w’è–‡”i{recoverCount}–‡j‚æ‚è‘½‚­‘I‘ğ‚µ‚Ä‚¢‚Ü‚·I", 1f);
-            return;
-        }
-
-        // Šm”F‰æ–Ê‚Éi‚Ş‘O‚ÉŒx‚ğÁ‚·
-        if (discardMessage != null)
-            discardMessage.gameObject.SetActive(false);
-
-        confirmPanel.SetActive(true);
-
-        foreach (Transform child in confirmListParent)
-            Destroy(child.gameObject);
-
-        var grouped = selectedCards
-            .Where(d => d != null)
-            .GroupBy(d => d.id)
-            .OrderBy(g => g.Key);
-
-        foreach (var g in grouped)
-        {
-            var data = g.First();
-            int count = g.Count();
-
-            var obj = Instantiate(confirmCardPrefab, confirmListParent);
-            var ui = obj.GetComponent<CardUI>();
-            if (ui != null) ui.SetCard(data, count, null);
-
-            var detail = obj.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
-        }
-
-        if (confirmMessage != null)
-        {
-            if (selectedCards.Count < recoverCount)
-                confirmMessage.text = $"‚Ü‚¾‘I‚×‚Ü‚·‚ª‘åä•v‚Å‚·‚©Hi{selectedCards.Count}/{recoverCount}j";
-            else
-                confirmMessage.text = $"‚±‚ê‚ğ‰ñû‚µ‚Ü‚·‚©Hi{selectedCards.Count}/{recoverCount}j";
-        }
-    }
-    private void ShowDiscardWarning(string message, float duration = 1f)
-    {
-        if (discardMessage == null) return;
-
-        // Šù‚É•\¦’†‚È‚ç~‚ß‚é
-        if (discardMessageRoutine != null)
-            StopCoroutine(discardMessageRoutine);
-
-        discardMessageRoutine = StartCoroutine(ShowDiscardWarningRoutine(message, duration));
-    }
-
-    private IEnumerator ShowDiscardWarningRoutine(string message, float duration)
-    {
-        discardMessage.gameObject.SetActive(true);
-        discardMessage.text = message;
-
-        yield return new WaitForSecondsRealtime(duration);
-
-        discardMessage.text = "";
-        discardMessage.gameObject.SetActive(false);
-        discardMessageRoutine = null;
-    }
-
-
-    // OK
-    public void OnConfirmOK()
-    {
-        if (cardPlayablePrefab == null)
-        {
-            Debug.LogError("cardPlayablePrefab ‚ª–¢İ’è‚Å‚·BInspector‚ÅŠ„‚è“–‚Ä‚Ä‚­‚¾‚³‚¢B");
-            return;
-        }
-
-        foreach (var data in selectedCards)
-        {
-            var go = Instantiate(cardPlayablePrefab, recoverTargetPlayer.handManager.transform);
-            var cg = go.GetComponent<CardGenerator>();
-            cg.ApplyCardData(data);
-            cg.player = recoverTargetPlayer;
-            recoverTargetPlayer.handManager.AddCard(go);
-        }
-
-        EndRecoverMode();
-    }
-
-    // Cancel
-    public void OnConfirmCancel()
-    {
-        if (confirmPanel) confirmPanel.SetActive(false);
-    }
-
-    // ‰ñûƒ‚[ƒhI—¹
-    private void EndRecoverMode()
+    public void EndRecoverMode()
     {
         isRecoverMode = false;
-        recoverCount = 0;
-        recoverTargetPlayer = null;
         selectedCards.Clear();
 
-        if (completeButton) completeButton.SetActive(false);
-        if (closeButton) closeButton.SetActive(true);
-        if (confirmPanel) confirmPanel.SetActive(false);
-        if (fullViewPanel) fullViewPanel.SetActive(false);
-        if (recoverZonePanel) recoverZonePanel.SetActive(false);
+        if (completeButton != null) completeButton.SetActive(false);
+        if (recoverZonePanel != null) recoverZonePanel.SetActive(false);
+        if (recoverLimitText != null) recoverLimitText.gameObject.SetActive(false);
 
-        if (recoverLimitText != null)
-            recoverLimitText.gameObject.SetActive(false); // © ”ñ•\¦
-
-        // šƒTƒCƒY‚ÆˆÊ’u‚ğŒ³‚É–ß‚·
         if (discardScrollView != null)
         {
             discardScrollView.sizeDelta = normalSize;
             discardScrollView.anchoredPosition = normalPos;
+        }
+    }
+
+    public void MoveCardToRecover(CardGenerator.CardData data)
+    {
+        if (!isRecoverMode) return;
+
+        if (selectedCards.Count >= recoverCount)
+        {
+            if (discardMessageRoutine != null) StopCoroutine(discardMessageRoutine);
+            discardMessageRoutine = StartCoroutine(ShowDiscardMessage($"æŒ‡å®šæšæ•°ï¼ˆ{recoverCount}æšï¼‰ã‚ˆã‚Šå¤šãé¸æŠã—ã¦ã„ã¾ã™ï¼"));
+            return;
+        }
+
+        selectedCards.Add(data);
+        BuildRecoverZone();
+    }
+
+    public void MoveCardBackToDiscard(CardGenerator.CardData data)
+    {
+        if (!isRecoverMode) return;
+
+        selectedCards.Remove(data);
+        BuildRecoverZone();
+    }
+
+    public void BuildRecoverZone()
+    {
+        foreach (Transform child in recoverZoneParent)
+        {
+            Destroy(child.gameObject);
+        }
+
+        foreach (var card in selectedCards)
+        {
+            GameObject obj = Instantiate(cardDisplayPrefab, recoverZoneParent);
+            CardUI ui = obj.GetComponent<CardUI>();
+            if (ui != null)
+            {
+                ui.SetCard(card, 1, this, CardUISource.RecoverZone);
+            }
+        }
+    }
+
+    public void OnCompleteButton()
+    {
+        if (confirmPanel != null) confirmPanel.SetActive(true);
+        if (confirmMessage != null) confirmMessage.text = "ã“ã‚Œã‚‰ã®ã‚«ãƒ¼ãƒ‰ã‚’å›åã—ã¾ã™ã‹ï¼Ÿ";
+
+        foreach (Transform child in confirmListParent)
+        {
+            Destroy(child.gameObject);
+        }
+
+        foreach (var card in selectedCards)
+        {
+            GameObject obj = Instantiate(confirmCardPrefab, confirmListParent);
+            CardUI ui = obj.GetComponent<CardUI>();
+            if (ui != null) ui.SetCard(card, 1);
+        }
+    }
+
+    public void OnConfirmOK()
+    {
+        if (recoverTargetPlayer != null)
+        {
+            foreach (var card in selectedCards)
+            {
+                GameObject obj = Instantiate(cardPlayablePrefab, recoverTargetPlayer.handManager.transform);
+                CardGenerator cg = obj.GetComponent<CardGenerator>();
+                if (cg != null) cg.ApplyCardData(card);
+                recoverTargetPlayer.handManager.handCards.Add(obj);
+            }
+            recoverTargetPlayer.handManager.UpdateCardPositions();
+        }
+
+        EndRecoverMode();
+        if (confirmPanel != null) confirmPanel.SetActive(false);
+    }
+
+    public void OnConfirmCancel()
+    {
+        if (confirmPanel != null) confirmPanel.SetActive(false);
+    }
+
+    IEnumerator ShowDiscardMessage(string msg)
+    {
+        if (discardMessage != null)
+        {
+            discardMessage.text = msg;
+            discardMessage.gameObject.SetActive(true);
+            yield return new WaitForSeconds(1f);
+            discardMessage.gameObject.SetActive(false);
         }
     }
 }
