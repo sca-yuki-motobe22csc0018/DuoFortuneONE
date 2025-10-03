@@ -7,9 +7,15 @@ public class CardUIDetail : MonoBehaviour, IPointerClickHandler
 
     public void Init(CardGenerator.CardData data)
     {
-        cardData = data;
-    }
+        if (data == null)
+        {
+            Debug.LogError("Initにnullが渡された！ " + gameObject.name);
+            return;
+        }
 
+        cardData = data;
+        Debug.Log("Init完了: " + data.name + " (" + gameObject.name + ")");
+    }
     public void OnPointerClick(PointerEventData eventData)
     {
         // ★ 回収モード中は短押しで詳細を開かない

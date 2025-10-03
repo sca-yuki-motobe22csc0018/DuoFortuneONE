@@ -127,6 +127,7 @@ MonoBehaviour:
   cardImage: {fileID: 656263925893307086}
   typeImage: {fileID: 760690076541411312}
   nameText: {fileID: 6063668221300347060}
+  rubyText: {fileID: 7786448479984127664}
   costText: {fileID: 1597803371175723633}
   countText: {fileID: 8561175879190524728}
   textText: {fileID: 7648594294163031594}
@@ -530,12 +531,12 @@ GameObject:
   - component: {fileID: 6767530125327544208}
   - component: {fileID: 7786448479984127664}
   m_Layer: 5
-  m_Name: Name_rubi
+  m_Name: Name_ruby
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &7926493981529212797
 RectTransform:
   m_ObjectHideFlags: 0

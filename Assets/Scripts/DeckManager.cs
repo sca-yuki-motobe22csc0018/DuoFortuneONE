@@ -104,6 +104,7 @@ public class DeckManager : MonoBehaviour
             {
                 id = cardID,
                 name = "Card" + cardID,
+                ruby = "Card" + cardID,
                 cost = cardID % 5 + 1,
                 text = "効果テキスト",
                 type = "0",

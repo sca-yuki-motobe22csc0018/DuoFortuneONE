@@ -231,6 +231,7 @@ MonoBehaviour:
   typeImage: {fileID: 5269117932887493548}
   costText: {fileID: 2586764854292811123}
   nameText: {fileID: 6403967053820019580}
+  rubyText: {fileID: 0}
   textText: {fileID: 4656164537445542236}
   baseSortingOrder: 50
   cardID: 0
@@ -1389,8 +1390,6 @@ GameObject:
   - component: {fileID: 6834274884882366595}
   - component: {fileID: 1864956247117408541}
   - component: {fileID: 8688960371291990370}
-  - component: {fileID: 8053249879454569915}
-  - component: {fileID: 2642205726151582539}
   - component: {fileID: 2023174306568587829}
   m_Layer: 0
   m_Name: UICard
@@ -1489,30 +1488,6 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
---- !u!114 &8053249879454569915
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6053458449577293362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b098396782fa78845b8d8b3de46dec55, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &2642205726151582539
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6053458449577293362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d849e1e52a07da54980aae084f8b5aa4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &2023174306568587829
 MonoBehaviour:
   m_ObjectHideFlags: 0

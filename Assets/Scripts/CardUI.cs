@@ -15,6 +15,7 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     public Image cardImage;
     public Image typeImage;
     public TMP_Text nameText;
+    public TMP_Text rubyText;
     public TMP_Text costText;
     public TMP_Text countText;
     public TMP_Text textText;
@@ -45,6 +46,7 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
         sourceZone = zone;
 
         if (nameText) nameText.text = data.name;
+        if (rubyText != null) rubyText.text = data.ruby;
         if (costText) costText.text = data.cost.ToString();
         if (textText) textText.text = data.text;
 

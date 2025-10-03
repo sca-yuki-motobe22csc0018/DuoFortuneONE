@@ -13,6 +13,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public Image typeImage;
     public TMP_Text costText;
     public TMP_Text nameText;
+    public TMP_Text rubyText;
     public TMP_Text textText;
 
     [Header("Sorting")]
@@ -29,6 +30,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         public int id;
         public string name;
+        public string ruby;
         public string type;
         public string rarity;
         public int cost;
@@ -104,6 +106,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         if (costText != null) costText.text = data.cost.ToString();
         if (nameText != null) nameText.text = data.name;
+        if (rubyText != null) rubyText.text = data.ruby;
         if (textText != null) textText.text = data.text;
 
         if (cardImage != null)
@@ -167,24 +170,25 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             {
                 id = id,
                 name = values[1],
-                type = values[2],
-                rarity = values[3],
-                cost = int.TryParse(values[4], out int c) ? c : 0,
-                text = values[5],
-                image = values[6],
+                ruby = values[2],
+                type = values[3],
+                rarity = values[4],
+                cost = int.TryParse(values[5], out int c) ? c : 0,
+                text = values[6],
+                image = values[7],
 
-                effectType1 = values.Length > 7 ? values[7] : "",
-                effectValue1 = values.Length > 8 ? values[8] : "0",
-                effectType2 = values.Length > 9 ? values[9] : "",
-                effectValue2 = values.Length > 10 ? values[10] : "0",
-                effectType3 = values.Length > 11 ? values[11] : "",
-                effectValue3 = values.Length > 12 ? values[12] : "0",
-                effectType4 = values.Length > 13 ? values[13] : "",
-                effectValue4 = values.Length > 14 ? values[14] : "0",
-                effectType5 = values.Length > 15 ? values[15] : "",
-                effectValue5 = values.Length > 16 ? values[16] : "0",
-                effectType6 = values.Length > 17 ? values[17] : "",
-                effectValue6 = values.Length > 18 ? values[18] : "0",
+                effectType1 = values.Length > 8 ? values[8] : "",
+                effectValue1 = values.Length > 9 ? values[9] : "0",
+                effectType2 = values.Length > 10 ? values[10] : "",
+                effectValue2 = values.Length > 11 ? values[11] : "0",
+                effectType3 = values.Length > 12 ? values[12] : "",
+                effectValue3 = values.Length > 13 ? values[13] : "0",
+                effectType4 = values.Length > 14 ? values[14] : "",
+                effectValue4 = values.Length > 15 ? values[15] : "0",
+                effectType5 = values.Length > 16 ? values[16] : "",
+                effectValue5 = values.Length > 17 ? values[17] : "0",
+                effectType6 = values.Length > 18 ? values[18] : "",
+                effectValue6 = values.Length > 19 ? values[19] : "0",
             };
 
             cardList.Add(data);

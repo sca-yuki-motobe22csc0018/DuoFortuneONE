@@ -9,6 +9,7 @@ public class CardDetailPanel : MonoBehaviour
     [Header("UI Areas")]
     public Transform leftArea;   // CardUIを置く場所
     public TMP_Text nameText;
+    public TMP_Text rubyText;
     public TMP_Text costText;
     public TMP_Text typeText;        // ★ タイプ用を追加
     public TMP_Text descriptionText;
@@ -50,8 +51,33 @@ public class CardDetailPanel : MonoBehaviour
 
         // 右側にテキストを大きく反映
         if (nameText != null) nameText.text = data.name;
+        if (rubyText != null) rubyText.text = data.ruby;
         if (costText != null) costText.text = $" {data.cost}";
-        if (typeText != null) typeText.text = $"Type: {data.type}";
+        if (typeText != null)
+        {
+            string typeDisplay = data.type;
+
+            switch (data.type)
+            {
+                case "A":
+                    typeDisplay = "Attack";
+                    break;
+                case "B":
+                    typeDisplay = "Block";
+                    break;
+                case "D":
+                    typeDisplay = "Defence";
+                    break;
+                case "E":
+                    typeDisplay = "EX";
+                    break;
+                default:
+                    typeDisplay = data.type; // そのまま表示
+                    break;
+            }
+
+            typeText.text = $"{typeDisplay}";
+        }
         if (descriptionText != null) descriptionText.text = data.text;
 
         gameObject.SetActive(true);
