@@ -3,13 +3,14 @@ using System.Text;
 using System.IO;
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [Header("UI Components")]
-    public SpriteRenderer imageSpriteRenderer;
-    public SpriteRenderer typeSpriteRenderer;
+    public Image cardImage;
+    public Image typeImage;
     public TMP_Text costText;
     public TMP_Text nameText;
     public TMP_Text textText;
@@ -21,7 +22,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public int cardID;
     public List<CardData> cardList = new List<CardData>();
     public Dictionary<int, CardData> cardDict = new Dictionary<int, CardData>();
-    private CardData myData;
+    private CardData myData;  // ★ 現在のカード情報を保持する
 
     [System.Serializable]
     public class CardData
@@ -56,15 +57,18 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public Transform targetArea;
     public float targetRadius = 1.0f;
 
+    // ドラッグ管理
     private Camera mainCam;
     private Vector3 offset;
     private bool isDragging = false;
 
+    // 復帰用
     private Transform originalParent;
     private Vector3 originalLocalPos;
     private Quaternion originalLocalRot;
     private Vector3 originalLocalScale;
 
+    // DragRoot
     private Transform dragRoot;
 
     void Start()
@@ -96,22 +100,22 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     public void ApplyCardData(CardData data)
     {
-        myData = data;
+        myData = data;  // ★ 必ず保存して捨て札に渡せるようにする
 
         if (costText != null) costText.text = data.cost.ToString();
         if (nameText != null) nameText.text = data.name;
         if (textText != null) textText.text = data.text;
 
-        if (imageSpriteRenderer != null)
+        if (cardImage != null)
         {
-            Sprite imageSprite = Resources.Load<Sprite>("CardImages/" + data.image);
-            if (imageSprite != null) imageSpriteRenderer.sprite = imageSprite;
+            var imageSprite = Resources.Load<Sprite>("CardImages/" + data.image);
+            if (imageSprite) cardImage.sprite = imageSprite;
         }
 
-        if (typeSpriteRenderer != null)
+        if (typeImage != null)
         {
-            Sprite typeSprite = Resources.Load<Sprite>("CardTypes/Card_Type_" + data.type);
-            if (typeSprite != null) typeSpriteRenderer.sprite = typeSprite;
+            var typeSprite = Resources.Load<Sprite>("CardTypes/Card_Type_" + data.type);
+            if (typeSprite) typeImage.sprite = typeSprite;
         }
 
         this.name = data.name;
@@ -313,27 +317,205 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
-    // 仮メソッド (元の実装に依存)
-    private bool TryPlayCard()
+    void RestoreToHand(PlayerManager targetPlayer)
     {
-        Debug.Log("カードをプレイ！");
+        if (targetPlayer == null)
+        {
+            transform.SetParent(originalParent, false);
+            transform.localPosition = originalLocalPos;
+            transform.localRotation = originalLocalRot;
+            transform.localScale = originalLocalScale;
+        }
+        else
+        {
+            HandManager hand = targetPlayer.handManager;
+            if (hand != null)
+            {
+                transform.SetParent(hand.transform, false);
+                hand.AddCard(gameObject);
+                hand.UpdateCardPositions();
+            }
+        }
+
+        baseSortingOrder -= 10000;
+        SetChildSortingOrders();
+    }
+
+    public bool TryPlayCard()
+    {
+        if (player == null || myData == null) return false;
+        if (!player.SpendMana(myData.cost)) return false;
+        player.UpdateEnergyUI();
+
+        ActivateEffect();
+
+        if (discardManager != null)
+        {
+            // データだけ捨て札に送る
+            discardManager.AddToDiscard(myData);
+            Destroy(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+
         return true;
     }
 
-    private void RestoreToHand(PlayerManager p)
+    public void ActivateEffect()
     {
-        transform.SetParent(originalParent);
-        transform.localPosition = originalLocalPos;
-        transform.localRotation = originalLocalRot;
-        transform.localScale = originalLocalScale;
-        baseSortingOrder -= 10000;
-        SetChildSortingOrders();
+        if (myData == null) return;
 
-        HandManager hand = p.handManager;
-        if (hand != null && !hand.handCards.Contains(gameObject))
+        ApplyEffect(myData.effectType1, myData.effectValue1);
+        ApplyEffect(myData.effectType2, myData.effectValue2);
+        ApplyEffect(myData.effectType3, myData.effectValue3);
+        ApplyEffect(myData.effectType4, myData.effectValue4);
+        ApplyEffect(myData.effectType5, myData.effectValue5);
+        ApplyEffect(myData.effectType6, myData.effectValue6);
+    }
+
+    void ApplyEffect(string type, string value)
+    {
+        if (string.IsNullOrEmpty(type)) return;
+
+        //Debug.Log($"ApplyEffect: {type} ({value})"); // 仮ログ出力（呼ばれた確認用）
+
+        switch (type)
         {
-            hand.handCards.Add(gameObject);
-            hand.UpdateCardPositions();
+            case "Draw":
+                if (int.TryParse(value, out int drawCount))
+                    DoDraw(drawCount);
+                break;
+
+            case "ManaBoost":
+                if (int.TryParse(value, out int boost))
+                    DoManaBoost(boost);
+                break;
+
+            case "ManaRecover":
+                if (int.TryParse(value, out int recover))
+                    DoManaRecover(recover);
+                break;
+
+            case "ManaReduce":
+                Debug.Log($"相手のマナ -{value}");
+                break;
+
+            case "ManaReduceMax":
+                Debug.Log($"自分の最大マナ -{value}");
+                break;
+
+            case "ManaReduceMaxOpponent":
+                Debug.Log($"相手の最大マナ -{value}");
+                break;
+
+            case "LifeAdd":
+                if (int.TryParse(value, out int life))
+                    DoLifeAdd(life);
+                break;
+
+            case "Attack":
+                Debug.Log($"Attack {value} 回");
+                break;
+
+            case "Block":
+                Debug.Log($"Block {value} 回");
+                break;
+
+            case "DiscardSelf":
+                Debug.Log($"自分の手札から {value} 枚捨てる");
+                break;
+
+            case "DiscardOpponent":
+                Debug.Log($"相手の手札から {value} 枚捨てる");
+                break;
+
+            case "RecoverDiscard":
+                if (int.TryParse(value, out int count))
+                    DoRecoverDiscard(count);
+                break;
+
+            case "StealHand":
+                Debug.Log($"相手の手札から {value} 枚奪う");
+                break;
+
+            case "SwapHands":
+                Debug.Log("相手と手札を交換");
+                break;
+
+            case "Choice":
+                Debug.Log($"選択肢から {value} 回選ぶ");
+                break;
+
+            case "EndTurn":
+                DoEndTurn();
+                break;
+
+            case "EndTurnIfMyTurn":
+                {
+                    var gm = FindAnyObjectByType<GameManager>();
+                    if (gm != null && gm.IsMyTurn(player))
+                    {
+                        DoEndTurn();
+                    }
+                }
+                break;
+
+            case "Defence":
+                Debug.Log("Defence 効果発動（複数効果）");
+                break;
+
+            default:
+                Debug.LogWarning($"未対応の効果: {type}");
+                break;
         }
+    }
+
+    void DoDraw(int count)
+    {
+        var deck = FindAnyObjectByType<DeckManager>();
+        if (deck == null) return;
+
+        for (int i = 0; i < count; i++)
+            deck.DrawCardToHand(player);
+    }
+
+    void DoManaBoost(int amount)
+    {
+        if (player != null)
+        {
+            player.IncreaseMaxManaOnly(amount);
+            player.UpdateEnergyUI(); // ← 即座にUI反映
+        }
+    }
+
+    void DoManaRecover(int amount)
+    {
+        if (player != null)
+            player.currentMana = Mathf.Min(player.currentMana + amount, player.maxMana);
+    }
+
+    void DoLifeAdd(int amount)
+    {
+        if (player != null && player.lifeManager != null)
+        {
+            for (int i = 0; i < amount; i++)
+                player.lifeManager.AddLife();
+        }
+    }
+    void DoRecoverDiscard(int count)
+    {
+        var discard = FindAnyObjectByType<DiscardManager>();
+        if (discard != null)
+        {
+            discard.StartRecoverMode(player, count);
+        }
+    }
+
+    void DoEndTurn()
+    {
+        var gm = FindAnyObjectByType<GameManager>();
+        if (gm != null) gm.OnEndTurn();
     }
 }

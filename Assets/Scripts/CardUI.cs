@@ -1,7 +1,7 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public enum CardUISource
 {
@@ -20,7 +20,7 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     public TMP_Text textText;
 
     [Header("選択ハイライト枠")]
-    [SerializeField] private Image highlightFrame; 
+    [SerializeField] private Image highlightFrame; // 枠用Image（Raycast Target OFF、初期はdisabled）
 
     private CardGenerator.CardData cardData;
     private DiscardManager discardManager;
@@ -32,8 +32,12 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     [Header("長押し判定時間(秒)")]
     public float longPressThreshold = 0.5f;
 
+    // 自分が属するゾーン
     public CardUISource sourceZone = CardUISource.DiscardZone;
 
+    /// <summary>
+    /// カードUIの内容をセット
+    /// </summary>
     public void SetCard(CardGenerator.CardData data, int count = 1, DiscardManager manager = null, CardUISource zone = CardUISource.DiscardZone)
     {
         cardData = data;
@@ -60,7 +64,7 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
             countText.text = "×" + count;
         }
 
-        SetHighlight(false);
+        SetHighlight(false); // 初期は枠OFF
     }
 
     public void OnPointerDown(PointerEventData eventData)
@@ -72,14 +76,17 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        // 長押し未発動 → 短押し扱い
         if (!longPressTriggered && discardManager != null && discardManager.IsRecoverMode)
         {
             if (sourceZone == CardUISource.DiscardZone)
             {
+                // 捨て札ゾーン → 回収ゾーン
                 discardManager.MoveCardToRecover(cardData);
             }
             else if (sourceZone == CardUISource.RecoverZone)
             {
+                // 回収ゾーン → 捨て札ゾーン
                 discardManager.MoveCardBackToDiscard(cardData);
             }
         }
@@ -100,6 +107,7 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
             if (held >= longPressThreshold)
             {
                 longPressTriggered = true;
+                // ★ 長押しで詳細表示（回収モードでも通常時でもOK）
                 if (cardData != null && CardDetailPanel.Instance != null)
                 {
                     CardDetailPanel.Instance.Show(cardData);
