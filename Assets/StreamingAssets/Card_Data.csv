@@ -1,6 +1,6 @@
-﻿  ,Name,ruby,Type,Rarity,Cost,Text,Image,effectType1,effectValue1,effectType2,effectValue2,effectType3,effectValue3,effectType4,effectValue4,effectType5,effectValue5,effectType6,effectValue6,,
+﻿  ,Name,ruby,Type,Rarity,Cost,Text,Image,effectType1,effectValue1,effectType2,effectValue2,effectType3,effectValue3,effectType4,effectValue4,effectType5,effectValue5,effectType6,effectValue6,effectType7,effectValue7
 1001,ドルツヴァイ・アングリフ,ドルツヴァイ・アングリフ,A,R,6,"自分の[エネルギー]の最大値[-2]。
-[Attack]を[2]回する。",A_001,ManaReduceMax,2,Attack,2,,,,,,,,,,
+[Attack]を[2]回する。",A_001,ManaReduceMax,2,Attack,1,Attack,1,,,,,,,,
 1002,基本の聖拳,きほんのせいけん,A,R,4,"自分の[エネルギー]の最大値[-1]。
 [Attack]を[1]回する。",A_001,ManaReduceMax,1,Attack,1,,,,,,,,,,
 1003,突撃衝動,ストレート・インパクト,A,R,2,"自分の[エネルギー]の最大値[-1]。
@@ -8,7 +8,7 @@
 [Attack]を[1]回する。",A_003,ManaReduceMax,1,DiscardSelf,2,Attack,1,,,,,,,,
 1004,決死の煌めき,ファイナル・ベット,A,R,10,"自分の[エネルギー]の最大値[-10]。
 自分の[手札]を[全て][捨て札ゾーン]に置く。
-[Attack]を[5]回する。",A_003,ManaReduceMax,ALL,DiscardSelf,ALL,Attack,5,,,,,,,,
+[Attack]を[5]回する。",A_003,ManaReduceMax,ALL,DiscardSelf,ALL,Attack,1,Attack,1,Attack,1,Attack,1,Attack,1
 2001,首の皮1枚,ギリギリダンス,B,R,1,"自分の[手札]を[2]枚[捨て札ゾーン]に置く。
 [Block]を[1]回する。",B_003,DiscardSelf,2,Block,1,,,,,,,,,,
 2002,Tough・Guy,タフガイ,B,R,2,[Block]を[1]回する。,B_003,Block,1,,,,,,,,,,,,
@@ -19,7 +19,8 @@
 2004,血涙の堆肥,けつるいのたいひ,B,R,4,自分の[ライフゾーン]に[1]枚[山札]から置く。,B_003,LifeAdd,1,,,,,,,,,,,,
 3001,フローレンス・ラヴァ―,フローレンス・ラヴァ―,D,R,6,"自分のターンなら、自分の[エネルギー]の最大値[-2]。
 自分の[ライフゾーン]に[1]枚[山札]から置く。
-[山札]から[2]枚引く。",D_001,ManaReduceIfMyTurn,2,Defence,1,LifeAdd,1,Draw,2,,,,,,
+[捨て札ゾーン]から[2]枚加える。
+自分の[エネルギー]を[2]回復する。",D_001,ManaReduceIfMyTurn,2,Defence,1,LifeAdd,1,RecoverDiscard,2,ManaRecover,2,,,,
 3002,悪霊拡散,あくりょうかくさん,D,R,4,"自分のターンなら、自分の[エネルギー]の最大値[-1]。
 相手の[手札]を[2]枚ランダムに[捨て札ゾーン]に置く。
 [山札]から[2]枚引く。",D_012,ManaReduceIfMyTurn,1,Defence,1,DiscardOpponent,2,Draw,2,,,,,,
@@ -86,3 +87,12 @@
 ,,,,,,まだ選べますが大丈夫ですか？（{selectedCards.Count}/{recoverCount}）,,,,,,,,,,,,,,,
 ,,,,,,これを回収しますか？（{selectedCards.Count}/{recoverCount}）,,,,,,,,,,,,,,,
 ,,,,,,ATTACKBLOCKDEFENCEEXattackblockdefenceex,,,,,,,,,,,,,,,
+,,,,,,効果実行中,,,,,,,,,,,,,,,
+,,,,,,効果　処理完了！,,,,,,,,,,,,,,,
+,,,,,,攻撃開始,,,,,,,,,,,,,,,
+,,,,,,相手がBLOCKカードを発動！,,,,,,,,,,,,,,,
+,,,,,,攻撃が通った！ ライフ1枚破壊！,,,,,,,,,,,,,,,
+,,,,,,攻撃処理完了,,,,,,,,,,,,,,,
+,,,,,,BLOCK 発動可,,,,,,,,,,,,,,,
+,,,,,,DEFENCE 判定中…,,,,,,,,,,,,,,,
+,,,,,,減,,,,,,,,,,,,,,,
