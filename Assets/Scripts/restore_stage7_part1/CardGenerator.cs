@@ -390,8 +390,35 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         if (!player.SpendMana(myData.cost)) return false;
         player.UpdateEnergyUI();
 
+        // ★ 修正: 使用確定時、GameObjectは非アクティブ化せず"見た目だけ"即座に消す
+        HideVisualsForUsing();
+
         StartCoroutine(EffectSequenceCoroutine()); // ★ コルーチン開始
         return true;
+    }
+
+    /// <summary>
+    /// 見た目とクリック判定だけを無効化して、コルーチンは継続させる
+    /// </summary>
+    private void HideVisualsForUsing()
+    {
+        // UI(Image, TMP) を不可視化 & Raycast無効
+        var images = GetComponentsInChildren<Image>(true);
+        foreach (var img in images) { img.raycastTarget = false; img.enabled = false; }
+
+        var texts = GetComponentsInChildren<TMP_Text>(true);
+        foreach (var t in texts) { t.raycastTarget = false; t.enabled = false; }
+
+        // 2D/3Dレンダラーを不可視化
+        var srs = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var sr in srs) sr.enabled = false;
+
+        // 当たり判定オフ（誤クリック防止）
+        var cols2D = GetComponentsInChildren<Collider2D>(true);
+        foreach (var c in cols2D) c.enabled = false;
+
+        var cols3D = GetComponentsInChildren<Collider>(true);
+        foreach (var c in cols3D) c.enabled = false;
     }
 
     private IEnumerator EffectSequenceCoroutine()

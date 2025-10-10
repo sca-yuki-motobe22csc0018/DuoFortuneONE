@@ -156,8 +156,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 299.48288, y: -74.628845}
-  m_SizeDelta: {x: 798.9657, y: 89.2577}
+  m_AnchoredPosition: {x: 400, y: -75}
+  m_SizeDelta: {x: 1000, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &16236625
 MonoBehaviour:
@@ -1607,7 +1607,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -860, y: 515}
+  m_AnchoredPosition: {x: -850, y: 505}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &468537635
@@ -3820,7 +3820,7 @@ MonoBehaviour:
   handCards: []
   cardSpacing: 1.25
   handY: -3.5
-  maxWidth: 10
+  maxWidth: 6.5
   maxAngle: 10
   curveHeight: -2
   arcUp: 0
@@ -4479,8 +4479,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lifeCardPrefab: {fileID: 3228664229943183056, guid: cf9fc69a7b3d0784b9eddfc1d778d7ea, type: 3}
   lifeParent: {fileID: 929182295}
-  maxWidth: 6
-  minSpacing: 0.6
+  maxWidth: 7
+  minSpacing: 0.75
 --- !u!4 &929182295
 Transform:
   m_ObjectHideFlags: 0
@@ -6742,7 +6742,7 @@ MonoBehaviour:
   handCards: []
   cardSpacing: 1.25
   handY: -3.5
-  maxWidth: 10
+  maxWidth: 6.5
   maxAngle: 10
   curveHeight: -2
   arcUp: 0
@@ -8632,8 +8632,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0.00059509, y: 0.00018024}
-  m_SizeDelta: {x: 887.74, y: 99.176}
+  m_AnchoredPosition: {x: -0.00070572, y: 0.00018024}
+  m_SizeDelta: {x: 1111.1, y: 99.176}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1598127479
 MonoBehaviour:
@@ -8706,7 +8706,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0049dcacc09082b4e8f95634c6e3f626, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  processWindow: {fileID: 468537635}
 --- !u!4 &1612093759
 Transform:
   m_ObjectHideFlags: 0
@@ -8716,7 +8715,7 @@ Transform:
   m_GameObject: {fileID: 1612093757}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 875.63165, y: 556.3346, z: -2.4444802}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -69,14 +69,14 @@ public class DefenceWindow : MonoBehaviour
             var ui = currentCardObj.GetComponent<CardUI>();
             if (ui != null)
             {
-                ui.SetCard(cardData, 1, null, CardUISource.RecoverZone); // 画像/タイプ/名前/ルビ/テキストをUIに反映 :contentReference[oaicite:2]{index=2}
+                ui.SetCard(cardData, 1, null, CardUISource.RecoverZone);
             }
 
             // クリックで詳細を開けるように CardUIDetail にも初期化を渡す
             var detail = currentCardObj.GetComponent<CardUIDetail>();
             if (detail != null)
             {
-                detail.Init(cardData); // 短押しで CardDetailPanel を開く初期化 :contentReference[oaicite:3]{index=3}
+                detail.Init(cardData);
             }
         }
         else
@@ -127,6 +127,21 @@ public class DefenceWindow : MonoBehaviour
     {
         useDefence = true;
         isWaiting = false;
+
+        // ★ 修正: gameObjectを非アクティブにせず、CanvasGroupで透明にして閉じる
+        HideWindowVisual();
+    }
+
+    private void HideWindowVisual()
+    {
+        CanvasGroup cg = GetComponent<CanvasGroup>();
+        if (cg == null)
+        {
+            cg = gameObject.AddComponent<CanvasGroup>();
+        }
+        cg.alpha = 0;        // 完全に透明
+        cg.interactable = false;
+        cg.blocksRaycasts = false;
     }
 
     private void OnOkClicked()
@@ -142,15 +157,27 @@ public class DefenceWindow : MonoBehaviour
     {
         if (currentCardData == null || currentPlayer == null) yield break;
 
-        // 実効果は CardGenerator に任せる（UIとは分離）
         GameObject tempCard = new GameObject("TempDefenceCard");
         var cg = tempCard.AddComponent<CardGenerator>();
         cg.player = currentPlayer;
         cg.ApplyCardData(currentCardData);
 
-        // 逐次処理コルーチンを直接実行（プロトタイプではこれが一番確実）
         yield return cg.StartCoroutine("EffectSequenceCoroutine");
 
         Destroy(tempCard);
+
+        // ★ 追加: 処理が終わったらUIを復元
+        RestoreWindowVisual();
+    }
+
+    private void RestoreWindowVisual()
+    {
+        CanvasGroup cg = GetComponent<CanvasGroup>();
+        if (cg != null)
+        {
+            cg.alpha = 1f;
+            cg.interactable = true;
+            cg.blocksRaycasts = true;
+        }
     }
 }

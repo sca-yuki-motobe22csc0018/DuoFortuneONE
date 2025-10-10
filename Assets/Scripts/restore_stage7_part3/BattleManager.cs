@@ -34,7 +34,7 @@ public class BattleManager : MonoBehaviour
 
         if (hasPlayableBlock && blockData != null && blockGO != null)
         {
-            // ③ Block使用（今回は自動使用。UI導入時に置き換え可能）
+            // ③ Block使用
             yield return EffectProcessWindow.Instance.ShowProcess($"相手は Block を使用します。〔{blockData.name}〕");
 
             // マナ支払い
@@ -42,32 +42,30 @@ public class BattleManager : MonoBehaviour
             {
                 defender.UpdateEnergyUI();
 
-                // 使ったBlockカードを手札から取り除き → 捨て札へ（HandManager側でDiscadへ送る実装あり）
+                // 使ったBlockカードを手札から取り除き → 捨て札へ
                 if (defender.handManager != null)
                 {
                     defender.handManager.RemoveCard(blockGO);
                 }
                 else
                 {
-                    // 念のためのフォールバック：CardDataだけ捨て札に送って実物破棄
                     var discard = FindAnyObjectByType<DiscardManager>();
                     if (discard != null) discard.AddToDiscard(blockData);
                     Destroy(blockGO);
                 }
 
-                // ④ Block効果の解決（NegateAttack / LifeAdd / ManaRecover / Draw など）
+                // ④ Block効果の解決（拡張：Attack効果を含む場合は反撃）
                 bool attackNegated = false;
                 yield return StartCoroutine(ApplyBlockEffect(defender, blockData, neg => attackNegated = neg));
 
                 if (attackNegated)
                 {
                     yield return EffectProcessWindow.Instance.ShowProcess("攻撃は Block により無効化されました。");
-                    yield break; // 攻撃終了
+                    yield break;
                 }
             }
             else
             {
-                // マナが足りず使用不能
                 yield return EffectProcessWindow.Instance.ShowProcess("相手は Block を使用できません（マナ不足）。");
             }
         }
@@ -79,7 +77,6 @@ public class BattleManager : MonoBehaviour
         // ⑤ 攻撃が通った → ライフ破壊
         yield return EffectProcessWindow.Instance.ShowProcess("攻撃がライフに通りました。ライフを破壊します。");
 
-        // LifeManager側は RemoveLife() が CardData を返す実装
         CardGenerator.CardData destroyedLifeCard = null;
         if (defender.lifeManager != null)
         {
@@ -90,20 +87,20 @@ public class BattleManager : MonoBehaviour
             Debug.LogWarning("[BattleManager] defender.lifeManager が未設定です。");
         }
 
-        // ⑥ 破壊されたライフカードが DEFENCE を持っていれば、任意発動ウィンドウ
-        if (destroyedLifeCard != null && destroyedLifeCard.type == "D")
+        // ★ ライフカードのタイプに関係なく DefenceWindow を表示
+        if (destroyedLifeCard != null)
         {
-            yield return EffectProcessWindow.Instance.ShowProcess("破壊されたライフは DEFENCE カードです。発動しますか？");
+            yield return EffectProcessWindow.Instance.ShowProcess(
+                $"破壊されたライフカード〔{destroyedLifeCard.name}〕を確認します。");
 
             if (DefenceWindow.Instance != null)
             {
-                // あなたの環境では ShowDefenceChoice(PlayerManager, CardData) が実装済み
+                // DefenceWindow はどのカードでも表示、Useボタンはtype==Dのみ有効
                 yield return StartCoroutine(DefenceWindow.Instance.ShowDefenceChoice(defender, destroyedLifeCard));
             }
             else
             {
-                // DefenceWindow がシーン上に無い場合
-                yield return EffectProcessWindow.Instance.ShowProcess("DefenceWindow が見つかりませんでした。DEFENCEはスキップされます。");
+                yield return EffectProcessWindow.Instance.ShowProcess("DefenceWindow が見つかりませんでした。確認をスキップします。");
             }
         }
 
@@ -111,11 +108,6 @@ public class BattleManager : MonoBehaviour
         yield return EffectProcessWindow.Instance.ShowProcess("攻撃完了。");
     }
 
-    /// <summary>
-    /// 手札から「プレイ可能な Block カード」を探索
-    /// ・type == "B"
-    /// ・cost <= currentMana
-    /// </summary>
     private bool TryGetPlayableBlock(PlayerManager player, out CardGenerator.CardData blockData, out GameObject blockGO)
     {
         blockData = null;
@@ -134,7 +126,6 @@ public class BattleManager : MonoBehaviour
             var data = cg.cardData;
             if (data == null) continue;
 
-            // Block かつ マナが足りるもの
             if (data.type == "B" && player.currentMana >= data.cost)
             {
                 blockData = data;
@@ -146,19 +137,22 @@ public class BattleManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Block効果の実行（複数効果に対応）
-    /// ・NegateAttack: 攻撃無効化フラグを立てる
-    /// ・LifeAdd: ライフ増加
-    /// ・ManaRecover: マナ回復
-    /// ・Draw: 山札から手札へドロー
-    /// ※ 未対応効果はメッセージ表示のみ（フローは続行）
+    /// Block効果（Attack付き対応版）
     /// </summary>
     private IEnumerator ApplyBlockEffect(PlayerManager defender, CardGenerator.CardData blockCard, System.Action<bool> onNegateResult)
     {
         bool negated = false;
 
-        string[] types = { blockCard.effectType1, blockCard.effectType2, blockCard.effectType3, blockCard.effectType4, blockCard.effectType5, blockCard.effectType6 };
-        string[] values = { blockCard.effectValue1, blockCard.effectValue2, blockCard.effectValue3, blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6 };
+        string[] types = {
+            blockCard.effectType1, blockCard.effectType2, blockCard.effectType3,
+            blockCard.effectType4, blockCard.effectType5, blockCard.effectType6
+        };
+        string[] values = {
+            blockCard.effectValue1, blockCard.effectValue2, blockCard.effectValue3,
+            blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6
+        };
+
+        bool hasAttack = false;
 
         for (int i = 0; i < types.Length; i++)
         {
@@ -171,7 +165,6 @@ public class BattleManager : MonoBehaviour
             switch (t)
             {
                 case "Block":
-                    // 攻撃を無効化（実ダメージ等は以降スキップ）
                     negated = true;
                     break;
 
@@ -203,25 +196,39 @@ public class BattleManager : MonoBehaviour
                     }
                     break;
 
+                case "Attack":
+                    // ★ 新規: BlockカードにAttack効果がある場合、反撃フラグを立てる
+                    hasAttack = true;
+                    break;
+
                 default:
-                    // 未対応でもフローを止めない（Nextボタンは出す）
                     yield return EffectProcessWindow.Instance.ShowProcess($"未対応のBlock効果: {t}（値: {v}）は未実装です。");
                     break;
             }
         }
 
+        // ★ BlockカードがAttack効果を持っている場合 → 反撃開始
+        if (hasAttack)
+        {
+            yield return EffectProcessWindow.Instance.ShowProcess($"{blockCard.name} の反撃効果を発動！");
+
+            PlayerManager counterAttacker = defender;
+            GameManager gm = FindAnyObjectByType<GameManager>();
+            PlayerManager counterDefender = (gm != null && counterAttacker == gm.player1)
+                ? gm.player2
+                : gm.player1;
+
+            yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, blockCard));
+        }
+
         onNegateResult?.Invoke(negated);
     }
 
-    /// <summary>
-    /// 安全にマナを支払う（SpendManaがなければフォールバック）
-    /// </summary>
     private bool SpendManaSafe(PlayerManager p, int cost)
     {
         if (p == null) return false;
         try
         {
-            // 既存の PlayerManager に SpendMana(int) がある前提（CardGenerator から呼んでいる）
             var mi = typeof(PlayerManager).GetMethod("SpendMana");
             if (mi != null)
             {
@@ -229,7 +236,6 @@ public class BattleManager : MonoBehaviour
                 if (r is bool b) return b;
             }
 
-            // フォールバック：直接減らす（上限・下限は呼び出し前にチェック済み）
             if (p.currentMana >= cost)
             {
                 p.currentMana -= cost;

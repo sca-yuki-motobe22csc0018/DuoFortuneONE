@@ -70,9 +70,6 @@ public class GameManager : MonoBehaviour
     {
         currentPlayer = player;
 
-        // 自分のターン開始時にマナを全回復
-        currentPlayer.ResetMana();
-
         endTurnButton.interactable = true;
         turnChoicePanel.SetActive(true);
 
@@ -90,6 +87,8 @@ public class GameManager : MonoBehaviour
             deckManager.DrawCardToHand(currentPlayer);
             deckManager.DrawCardToHand(currentPlayer);
         }
+        // ★ ここで自分だけマナ全回復
+        currentPlayer.ResetMana();
         turnChoicePanel.SetActive(false);
     }
 
@@ -99,6 +98,8 @@ public class GameManager : MonoBehaviour
         {
             currentPlayer.IncreaseMaxMana(1);
         }
+        // ★ ここで自分だけマナ全回復
+        currentPlayer.ResetMana();
         turnChoicePanel.SetActive(false);
     }
 
@@ -110,13 +111,6 @@ public class GameManager : MonoBehaviour
     void EndTurnChoice()
     {
         turnChoicePanel.SetActive(false);
-
-        if (currentPlayer != null)
-        {
-            currentPlayer.ResetMana();
-        }
-
-        Debug.Log($"ターン終了準備完了: {currentPlayer.name}");
 
         endTurnButton.interactable = false;
 

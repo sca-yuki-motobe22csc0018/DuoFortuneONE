@@ -13,6 +13,9 @@ public class LifeManager : MonoBehaviour
     private Dictionary<GameObject, CardGenerator.CardData> lifeDataDict = new Dictionary<GameObject, CardGenerator.CardData>();
     private CardGenerator.CardData lastDestroyedCard = null;
 
+    /// <summary>
+    /// 初期ライフを山札からセットアップ（データのみドローして配置）
+    /// </summary>
     public void SetupInitialLife(int count, DeckManager deckManager)
     {
         if (deckManager == null)
@@ -21,11 +24,13 @@ public class LifeManager : MonoBehaviour
             return;
         }
 
+        // 既存をクリア
         foreach (var card in lifeCards)
             Destroy(card);
         lifeCards.Clear();
         lifeDataDict.Clear();
 
+        // 指定枚数ぶんデータのみ引いて裏向きライフとして配置
         for (int i = 0; i < count; i++)
         {
             var data = deckManager.DrawCardDataOnly();
@@ -36,6 +41,9 @@ public class LifeManager : MonoBehaviour
         RearrangeLife();
     }
 
+    /// <summary>
+    /// 指定のカードデータでライフを1枚追加（外部からデータが渡される場合に使用）
+    /// </summary>
     public void AddLife(CardGenerator.CardData data)
     {
         if (data == null) return;
@@ -48,13 +56,35 @@ public class LifeManager : MonoBehaviour
         lifeDataDict[card] = data;
 
         RearrangeLife();
-        AddLife(null);
-    }
-    public void AddLife()
-    {
-        AddLife(null);
+        // ★ 修正: 以前はここで AddLife(null) を呼んでいたが削除（無限再帰防止）
     }
 
+    /// <summary>
+    /// 山札からデータのみ引いてライフを1枚追加（Block効果のLifeAdd等で使用）
+    /// </summary>
+    public void AddLife()
+    {
+        // ★ 修正: DeckManagerをFindして自動取得する形に変更（外部参照維持）
+        var deckManager = FindAnyObjectByType<DeckManager>();
+        if (deckManager == null)
+        {
+            Debug.LogWarning("LifeManager.AddLife(): DeckManager が見つかりません。ライフ追加をスキップします。");
+            return;
+        }
+
+        var data = deckManager.DrawCardDataOnly();
+        if (data == null)
+        {
+            Debug.LogWarning("LifeManager.AddLife(): 山札が空のためライフを追加できません。");
+            return;
+        }
+
+        AddLife(data);
+    }
+
+    /// <summary>
+    /// 末尾のライフを1枚破壊し、そのデータを返す
+    /// </summary>
     public CardGenerator.CardData RemoveLife()
     {
         if (lifeCards.Count == 0) return null;
@@ -76,22 +106,28 @@ public class LifeManager : MonoBehaviour
         return destroyedData;
     }
 
+    /// <summary>
+    /// 直近に破壊されたライフカードのデータを取得
+    /// </summary>
     public CardGenerator.CardData GetDestroyedCard()
     {
         return lastDestroyedCard;
     }
 
+    /// <summary>
+    /// ライフの横一列配置を自動調整（中央寄せ）
+    /// </summary>
     private void RearrangeLife()
     {
         int count = lifeCards.Count;
         if (count == 0) return;
 
-        // ★ 自動spacing計算
+        // 自動spacing計算
         float spacing = (count > 1)
             ? Mathf.Max(maxWidth / (count - 1), minSpacing)
             : 0f;
 
-        // ★ 合計幅を計算して中央寄せ
+        // 合計幅を計算して中央寄せ
         float totalWidth = spacing * (count - 1);
         float startX = -totalWidth / 2f;
 
