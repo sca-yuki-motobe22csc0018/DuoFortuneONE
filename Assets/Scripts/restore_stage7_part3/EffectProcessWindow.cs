@@ -13,7 +13,6 @@ public class EffectProcessWindow : MonoBehaviour
     public Button nextButton;             // Nextボタン
 
     private bool waitingForNext = false;
-    private bool isShowing = false;
 
     private void Awake()
     {
@@ -61,14 +60,12 @@ public class EffectProcessWindow : MonoBehaviour
         ShowNextButton(true);
 
         waitingForNext = true;
-        isShowing = true;
 
         // Nextが押されるまで待機
         while (waitingForNext)
             yield return null;
 
         ShowNextButton(false);
-        isShowing = false;
 
         // メッセージを残したくない場合はここで消す
         // processText.text = "";
