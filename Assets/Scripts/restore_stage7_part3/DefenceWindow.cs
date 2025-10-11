@@ -100,7 +100,7 @@ public class DefenceWindow : MonoBehaviour
             // DEFENCEを使った場合 → 捨て札ゾーンへ送る
             if (currentPlayer != null && currentPlayer.discardManager != null)
             {
-                currentPlayer.discardManager.AddToDiscard(cardData);
+                currentPlayer.discardManager.AddToDiscard(cardData); // ← これ1回だけ残す
                 Debug.Log($"DEFENCEカード {cardData.name} を捨て札ゾーンへ送信");
             }
         }

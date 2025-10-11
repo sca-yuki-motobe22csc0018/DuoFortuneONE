@@ -465,7 +465,10 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         if (discardManager != null)
         {
-            discardManager.AddToDiscard(myData);
+            if (myData != null && myData.type != "D" && myData.type != "BLOCK")
+            {
+                discardManager.AddToDiscard(myData);
+            }
             Destroy(gameObject);
         }
     }

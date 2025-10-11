@@ -27,14 +27,21 @@ public class BattleManager : MonoBehaviour
         // ① 攻撃宣言
         yield return EffectProcessWindow.Instance.ShowProcess($"攻撃！ 〔{attackCard.name}〕");
 
-        // ② Blockチェック（プレイ可能なBlockを手札から探す）
-        CardGenerator.CardData blockData;
-        GameObject blockGO;
-        bool hasPlayableBlock = TryGetPlayableBlock(defender, out blockData, out blockGO);
+        // ② Block選択ウィンドウ表示（自動ではなく手動選択）
+        bool hasPlayableBlock = false;
+        CardGenerator.CardData blockData = null;
 
-        if (hasPlayableBlock && blockData != null && blockGO != null)
+        if (BlockWindow.Instance != null)
         {
-            // ③ Block使用
+            yield return StartCoroutine(BlockWindow.Instance.ShowBlockChoice(defender));
+            blockData = BlockWindow.Instance.GetSelectedBlockData();
+
+            if (blockData != null)
+                hasPlayableBlock = true;
+        }
+
+        if (hasPlayableBlock && blockData != null)
+        {
             yield return EffectProcessWindow.Instance.ShowProcess($"相手は Block を使用します。〔{blockData.name}〕");
 
             // マナ支払い
@@ -42,19 +49,7 @@ public class BattleManager : MonoBehaviour
             {
                 defender.UpdateEnergyUI();
 
-                // 使ったBlockカードを手札から取り除き → 捨て札へ
-                if (defender.handManager != null)
-                {
-                    defender.handManager.RemoveCard(blockGO);
-                }
-                else
-                {
-                    var discard = FindAnyObjectByType<DiscardManager>();
-                    if (discard != null) discard.AddToDiscard(blockData);
-                    Destroy(blockGO);
-                }
-
-                // ④ Block効果の解決（拡張：Attack効果を含む場合は反撃）
+                // Block効果処理
                 bool attackNegated = false;
                 yield return StartCoroutine(ApplyBlockEffect(defender, blockData, neg => attackNegated = neg));
 
@@ -66,7 +61,7 @@ public class BattleManager : MonoBehaviour
             }
             else
             {
-                yield return EffectProcessWindow.Instance.ShowProcess("相手は Block を使用できません（マナ不足）。");
+                yield return EffectProcessWindow.Instance.ShowProcess("Blockカードを使用できません（マナ不足）。");
             }
         }
         else
@@ -74,7 +69,7 @@ public class BattleManager : MonoBehaviour
             yield return EffectProcessWindow.Instance.ShowProcess("相手は Block を使用しません。");
         }
 
-        // ⑤ 攻撃が通った → ライフ破壊
+        // ③ 攻撃が通った → ライフ破壊
         yield return EffectProcessWindow.Instance.ShowProcess("攻撃がライフに通りました。ライフを破壊します。");
 
         CardGenerator.CardData destroyedLifeCard = null;
@@ -87,7 +82,7 @@ public class BattleManager : MonoBehaviour
             Debug.LogWarning("[BattleManager] defender.lifeManager が未設定です。");
         }
 
-        // ★ ライフカードのタイプに関係なく DefenceWindow を表示
+        // ④ DEFENCEWindow表示（どのカードタイプでも）
         if (destroyedLifeCard != null)
         {
             yield return EffectProcessWindow.Instance.ShowProcess(
@@ -95,45 +90,16 @@ public class BattleManager : MonoBehaviour
 
             if (DefenceWindow.Instance != null)
             {
-                // DefenceWindow はどのカードでも表示、Useボタンはtype==Dのみ有効
                 yield return StartCoroutine(DefenceWindow.Instance.ShowDefenceChoice(defender, destroyedLifeCard));
             }
             else
             {
-                yield return EffectProcessWindow.Instance.ShowProcess("DefenceWindow が見つかりませんでした。確認をスキップします。");
+                yield return EffectProcessWindow.Instance.ShowProcess("DefenceWindow が見つかりませんでした。");
             }
         }
 
-        // ⑦ 攻撃終了
+        // ⑤ 攻撃終了
         yield return EffectProcessWindow.Instance.ShowProcess("攻撃完了。");
-    }
-
-    private bool TryGetPlayableBlock(PlayerManager player, out CardGenerator.CardData blockData, out GameObject blockGO)
-    {
-        blockData = null;
-        blockGO = null;
-
-        if (player == null || player.handManager == null) return false;
-        var list = player.handManager.handCards;
-        if (list == null || list.Count == 0) return false;
-
-        foreach (var go in list)
-        {
-            if (go == null) continue;
-            var cg = go.GetComponent<CardGenerator>();
-            if (cg == null) continue;
-
-            var data = cg.cardData;
-            if (data == null) continue;
-
-            if (data.type == "B" && player.currentMana >= data.cost)
-            {
-                blockData = data;
-                blockGO = go;
-                return true;
-            }
-        }
-        return false;
     }
 
     /// <summary>
@@ -197,17 +163,16 @@ public class BattleManager : MonoBehaviour
                     break;
 
                 case "Attack":
-                    // ★ 新規: BlockカードにAttack効果がある場合、反撃フラグを立てる
                     hasAttack = true;
                     break;
 
                 default:
-                    yield return EffectProcessWindow.Instance.ShowProcess($"未対応のBlock効果: {t}（値: {v}）は未実装です。");
+                    yield return EffectProcessWindow.Instance.ShowProcess($"未対応のBlock効果: {t}（値: {v}）");
                     break;
             }
         }
 
-        // ★ BlockカードがAttack効果を持っている場合 → 反撃開始
+        // BlockカードがAttack効果を持つ場合 → 反撃
         if (hasAttack)
         {
             yield return EffectProcessWindow.Instance.ShowProcess($"{blockCard.name} の反撃効果を発動！");
@@ -219,6 +184,22 @@ public class BattleManager : MonoBehaviour
                 : gm.player1;
 
             yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, blockCard));
+        }
+
+
+        // ★ Blockカード使用後 → 手札から削除し捨て札へ送る
+        // Attack効果（反撃）を持つ場合は、反撃が完全に終わってから捨て札に送る
+        if (defender != null && blockCard != null)
+        {
+            if (!hasAttack)
+            {
+                SendBlockToDiscard(defender, blockCard);
+            }
+            else
+            {
+                yield return EffectProcessWindow.Instance.ShowProcess("反撃完了。Blockカードを捨て札へ送ります。");
+                SendBlockToDiscard(defender, blockCard);
+            }
         }
 
         onNegateResult?.Invoke(negated);
@@ -253,4 +234,27 @@ public class BattleManager : MonoBehaviour
             return false;
         }
     }
+
+    private void SendBlockToDiscard(PlayerManager defender, CardGenerator.CardData blockCard)
+    {
+        var hand = defender?.handManager;
+        if (hand == null || blockCard == null) return;
+
+        GameObject cardObj = null;
+        foreach (Transform t in hand.transform)
+        {
+            var cg = t.GetComponent<CardGenerator>();
+            if (cg != null && cg.cardData == blockCard)
+            {
+                cardObj = t.gameObject;
+                break;
+            }
+        }
+
+        if (cardObj != null)
+        {
+            hand.RemoveCard(cardObj);
+            GameObject.Destroy(cardObj);
+        }
+        }
 }
