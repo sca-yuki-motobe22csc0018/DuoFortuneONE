@@ -572,15 +572,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
-    void DoRecoverDiscard(int count)
-    {
-        var discard = FindAnyObjectByType<DiscardManager>();
-        if (discard != null)
-        {
-            discard.StartRecoverMode(player, count);
-        }
-    }
-
     void DoEndTurn()
     {
         var gm = FindAnyObjectByType<GameManager>();
@@ -616,8 +607,22 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     private IEnumerator DoRecoverDiscardRoutine(int x)
     {
+        var discard = FindAnyObjectByType<DiscardManager>();
+        if (discard == null)
+        {
+            yield break;
+        }
+
+        // メッセージを表示
         yield return EffectProcessWindow.Instance.ShowProcess($"捨て札から {x} 枚回収します。");
-        DoRecoverDiscard(x);
+
+        // 回収モード開始
+        discard.StartRecoverMode(player, x);
+
+        // ★ OKボタンが押されるまで待機
+        yield return new WaitUntil(() => discard.IsRecoverComplete);
+
+        // （OKが押されたら次の処理に進む）
         yield break;
     }
 

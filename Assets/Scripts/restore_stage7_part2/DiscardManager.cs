@@ -52,6 +52,8 @@ public class DiscardManager : MonoBehaviour
 
     private List<CardGenerator.CardData> selectedCards = new List<CardGenerator.CardData>();
 
+    private bool isRecoverComplete = false;
+    public bool IsRecoverComplete => isRecoverComplete;
     public bool IsRecoverMode => isRecoverMode;
 
     void Start()
@@ -126,6 +128,7 @@ public class DiscardManager : MonoBehaviour
     // 回収モード開始
     public void StartRecoverMode(PlayerManager player, int count)
     {
+        isRecoverComplete = false; // ★回収開始時にリセット
         isRecoverMode = true;
         recoverCount = count;
         recoverTargetPlayer = player;
@@ -298,7 +301,7 @@ public class DiscardManager : MonoBehaviour
             cg.player = recoverTargetPlayer;
             recoverTargetPlayer.handManager.AddCard(go);
         }
-
+        isRecoverComplete = true;  // ★OKが押されたので完了扱い
         EndRecoverMode();
     }
 

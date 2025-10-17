@@ -118,6 +118,13 @@ public class BlockWindow : MonoBehaviour
     private void OnCardClicked(GameObject cardObj, CardGenerator.CardData data)
     {
         if (data == null) return;
+        // ★ 追加：マナ不足のカードは選択不可
+        if (currentPlayer != null && currentPlayer.currentMana < data.cost)
+        {
+            Debug.Log($"{data.name}：マナ不足のため選択不可");
+            return;
+        }
+
         RectTransform rt = cardObj.GetComponent<RectTransform>();
         if (rt == null) return;
 
@@ -151,7 +158,17 @@ public class BlockWindow : MonoBehaviour
             selectedCardObj.transform.SetParent(blockCardParent, false);
             LayoutRebuilder.ForceRebuildLayoutImmediate(blockCardParent as RectTransform);
             selectedCardObj.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+
+            // ★ 追加：戻したカードの CardUIInteraction.originalScale を更新
+            var interReturn = selectedCardObj.GetComponent<CardUIInteraction>();
+            if (interReturn != null)
+            {
+                var field = typeof(CardUIInteraction).GetField("originalScale", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (field != null)
+                    field.SetValue(interReturn, selectedCardObj.transform.localScale);
+            }
         }
+
 
         // --- 新しく選択 ---
         selectedCardObj = cardObj;
