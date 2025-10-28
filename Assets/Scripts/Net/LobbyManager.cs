@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Text;
 using Fusion;
@@ -8,38 +8,28 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// Photon Fusion ƒƒr[ŠÇ—ƒXƒNƒŠƒvƒgiv3j
-/// Eƒ‹[ƒ€ID‚Í”š‚Ì‚İi0-9j
-/// EÚ‘±¸”s‚ÍÄs‰Â”\
-/// Eƒ‹[ƒ€ID‚ÍuCreate Roomv‚ğ‰Ÿ‚µ‚½‚Ì‚İ•\¦
-/// </summary>
 public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("UI References")]
-    public TMP_InputField inputRoomID;   // è“ü—Í—p‚Ìƒ‹[ƒ€ID—“
-    public TMP_Text textRoomID;          // ©“®¶¬‚³‚ê‚½ƒ‹[ƒ€ID‚ğ•\¦
-    public TMP_Text textStatus;          // ó‘Ô•\¦ƒeƒLƒXƒg
-    public Button buttonCreate;          // ƒ‹[ƒ€ì¬ƒ{ƒ^ƒ“
-    public Button buttonJoin;            // ƒ‹[ƒ€Q‰Áƒ{ƒ^ƒ“
+    public TMP_InputField inputRoomID;
+    public TMP_Text textRoomID;
+    public TMP_Text textStatus;
+    public Button buttonCreate;
+    public Button buttonJoin;
 
     private NetworkRunner runner;
+    private GameObject runnerObject;
     private string currentRoomID = "";
 
     private void Start()
     {
-        // ‹N“®‚ÍRoom ID‚ğ”ñ•\¦‚É
         if (textRoomID != null)
             textRoomID.text = "";
 
-        // ƒ{ƒ^ƒ“ƒCƒxƒ“ƒg“o˜^
         buttonCreate.onClick.AddListener(() => StartGame(isHost: true));
         buttonJoin.onClick.AddListener(() => StartGame(isHost: false));
     }
 
-    /// <summary>
-    /// ƒ‹[ƒ€ID‚ğ”š‚Ì‚İ‚Å¶¬i0`9j
-    /// </summary>
     private string GenerateRoomID(int length)
     {
         const string chars = "0123456789";
@@ -52,55 +42,59 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         return sb.ToString();
     }
 
-    /// <summary>
-    /// ƒQ[ƒ€ŠJniHost or Clientj
-    /// </summary>
     private async void StartGame(bool isHost)
     {
-        // Šù‘¶‚ÌRunner‚ª‚ ‚éê‡‚Í’â~‚µ‚ÄÄs
-        if (runner != null)
+        // âœ… RunnerãŒæ—¢ã«å­˜åœ¨ã—ã¦ã„ã‚Œã°å®‰å…¨ã«å‰Šé™¤
+        if (runnerObject != null)
         {
-            textStatus.text = "ÄÚ‘±€”õ’†...";
-            await runner.Shutdown();
+            textStatus.text = "å†æ¥ç¶šæº–å‚™ä¸­...";
+            if (runner != null)
+            {
+                try
+                {
+                    await runner.Shutdown();
+                }
+                catch { }
+            }
+
+            Destroy(runnerObject);
+            runnerObject = null;
             runner = null;
-            await System.Threading.Tasks.Task.Delay(300);
+            await System.Threading.Tasks.Task.Delay(400);
         }
 
-        runner = gameObject.AddComponent<NetworkRunner>();
+        // âœ… Runnerå°‚ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’æ–°ã—ãç”Ÿæˆ
+        runnerObject = new GameObject("NetworkRunnerObject");
+        runner = runnerObject.AddComponent<NetworkRunner>();
         runner.ProvideInput = true;
 
-        var sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
+        var sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
+        runner.AddCallbacks(this);
 
         string roomId;
 
         if (isHost)
         {
-            // Host‚ÍV‚µ‚¢ID‚ğ¶¬
             currentRoomID = GenerateRoomID(6);
             roomId = currentRoomID;
-
-            // ƒ‹[ƒ€ID‚ğ•\¦iHost‚Ì‚İj
             if (textRoomID != null)
                 textRoomID.text = $"Room ID: {roomId}";
         }
         else
         {
-            // Client‚Í“ü—Í—“‚©‚çæ“¾
             roomId = inputRoomID.text.Trim();
             if (string.IsNullOrEmpty(roomId))
             {
-                textStatus.text = "ƒ‹[ƒ€ID‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢B";
+                textStatus.text = "ãƒ«ãƒ¼ãƒ IDã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ã€‚";
                 return;
             }
-
-            // Q‰Á‘¤‚ÍRoom ID•\¦‚µ‚È‚¢
             if (textRoomID != null)
                 textRoomID.text = "";
         }
 
         textStatus.text = isHost
-            ? $"ƒ‹[ƒ€ì¬’† ({roomId})..."
-            : $"ƒ‹[ƒ€Q‰Á’† ({roomId})...";
+            ? $"ãƒ«ãƒ¼ãƒ ä½œæˆä¸­ ({roomId})..."
+            : $"ãƒ«ãƒ¼ãƒ å‚åŠ ä¸­ ({roomId})...";
 
         var result = await runner.StartGame(new StartGameArgs
         {
@@ -112,38 +106,42 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         if (result.Ok)
         {
             textStatus.text = isHost
-                ? $"ƒ‹[ƒ€ì¬¬Œ÷I\nRoom ID: {roomId}"
-                : $"ƒ‹[ƒ€Q‰Á¬Œ÷I";
+                ? $"ãƒ«ãƒ¼ãƒ ä½œæˆæˆåŠŸï¼\nRoom ID: {roomId}"
+                : $"ãƒ«ãƒ¼ãƒ å‚åŠ æˆåŠŸï¼";
 
-            Debug.Log($"[LobbyManager] {roomId} ‚É {(isHost ? "Host" : "Client")}‚Æ‚µ‚ÄÚ‘±¬Œ÷");
+            Debug.Log($"[LobbyManager] {roomId} ã« {(isHost ? "Host" : "Client")}ã¨ã—ã¦æ¥ç¶šæˆåŠŸ");
 
-            // ”•bŒã‚ÉGameScene‚Ö‘JˆÚ
             await System.Threading.Tasks.Task.Delay(1500);
             SceneManager.LoadScene("GameScene");
         }
         else
         {
-            textStatus.text = $"Ú‘±¸”s: {result.ShutdownReason}\nID‚ğŠm”F‚µ‚ÄÄs‚µ‚Ä‚­‚¾‚³‚¢B";
-            Debug.LogError($"[LobbyManager] StartGame¸”s: {result.ShutdownReason}");
-            runner = null; // ÄÚ‘±‹–‰Â
+            textStatus.text = $"æ¥ç¶šå¤±æ•—: {result.ShutdownReason}\nIDã‚’ç¢ºèªã—ã¦å†è©¦è¡Œã—ã¦ãã ã•ã„ã€‚";
+            Debug.LogError($"[LobbyManager] StartGameå¤±æ•—: {result.ShutdownReason}");
+
+            // âœ… Runnerã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç ´æ£„ã—ã¦æ¬¡ã®æ¥ç¶šã‚’è¨±å¯
+            if (runnerObject != null)
+                Destroy(runnerObject);
+
+            runner = null;
+            runnerObject = null;
         }
     }
 
-    // ===============================
+    // ======================================
     // INetworkRunnerCallbacks
-    // ===============================
-
-    public void OnConnectedToServer(NetworkRunner runner) => Debug.Log("ƒT[ƒo[‚ÉÚ‘±‚µ‚Ü‚µ‚½B");
+    // ======================================
+    public void OnConnectedToServer(NetworkRunner runner) => Debug.Log("ã‚µãƒ¼ãƒãƒ¼ã«æ¥ç¶šã—ã¾ã—ãŸã€‚");
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
-        => Debug.LogError($"Ú‘±¸”s: {reason}");
+        => Debug.LogError($"æ¥ç¶šå¤±æ•—: {reason}");
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
-        => Debug.Log($"ƒvƒŒƒCƒ„[Q‰Á: {player}");
+        => Debug.Log($"ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼å‚åŠ : {player}");
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
-        => Debug.Log($"ƒvƒŒƒCƒ„[‘Şo: {player}");
+        => Debug.Log($"ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼é€€å‡º: {player}");
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
-        => Debug.Log($"Runner’â~: {shutdownReason}");
+        => Debug.Log($"Runneråœæ­¢: {shutdownReason}");
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
-        => Debug.Log($"ƒT[ƒo[‚©‚çØ’f: {reason}");
+        => Debug.Log($"ã‚µãƒ¼ãƒãƒ¼ã‹ã‚‰åˆ‡æ–­: {reason}");
     public void OnInput(NetworkRunner runner, NetworkInput input) { }
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
