@@ -2664,6 +2664,7 @@ MonoBehaviour:
   deckManager: {fileID: 2054135377}
   lifeManager1: {fileID: 929182294}
   lifeManager2: {fileID: 1423208695}
+  localPlayer: {fileID: 0}
   turnChoicePanel: {fileID: 1498648517}
   drawButton: {fileID: 719391601}
   increaseManaButton: {fileID: 1338012657}
@@ -9987,6 +9988,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e33e5f60cf272c4fafd49379646aa4b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   maxMana: 2
   currentMana: 0
   energyText: {fileID: 794959771}
@@ -11201,6 +11205,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e33e5f60cf272c4fafd49379646aa4b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   maxMana: 2
   currentMana: 0
   energyText: {fileID: 471877601}
