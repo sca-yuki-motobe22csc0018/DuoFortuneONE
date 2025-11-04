@@ -110,7 +110,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         runner.AddCallbacks(this);
         var sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
 
-        currentRoomID = GenerateRoomID(6);
+        currentRoomID = GenerateRoomID(2);
         var result = await runner.StartGame(new StartGameArgs()
         {
             GameMode = GameMode.Host,
