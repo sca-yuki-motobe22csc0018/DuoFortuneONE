@@ -640,7 +640,8 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         // 攻撃対象は仮で player2（または逆）
         PlayerManager attacker = player;
-        PlayerManager defender = (gm.player1 == player) ? gm.player2 : gm.player1;
+        PlayerManager defender =
+            (gm.players[0] == player) ? gm.players[1] : gm.players[0];
 
         yield return BattleManager.Instance.HandleAttack(attacker, defender, myData);
     }

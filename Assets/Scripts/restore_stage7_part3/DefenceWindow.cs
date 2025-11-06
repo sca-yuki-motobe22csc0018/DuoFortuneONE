@@ -97,10 +97,11 @@ public class DefenceWindow : MonoBehaviour
             Debug.Log("DEFENCE発動: " + cardData.name);
             yield return StartCoroutine(UseDefenceCard());
 
-            // DEFENCEを使った場合 → 捨て札ゾーンへ送る
-            if (currentPlayer != null && currentPlayer.discardManager != null)
+            // DEFENCE使用 → 捨て札へ送る
+            var discard = GameManager.Instance.discardManager;
+            if (discard != null)
             {
-                currentPlayer.discardManager.AddToDiscard(cardData); // ← これ1回だけ残す
+                discard.AddToDiscard(cardData);
                 Debug.Log($"DEFENCEカード {cardData.name} を捨て札ゾーンへ送信");
             }
         }

@@ -179,9 +179,15 @@ public class BattleManager : MonoBehaviour
 
             PlayerManager counterAttacker = defender;
             GameManager gm = FindAnyObjectByType<GameManager>();
-            PlayerManager counterDefender = (gm != null && counterAttacker == gm.player1)
-                ? gm.player2
-                : gm.player1;
+            PlayerManager counterDefender = null;
+
+            if (gm != null)
+            {
+                if (counterAttacker == gm.players[0])
+                    counterDefender = gm.players[1];
+                else
+                    counterDefender = gm.players[0];
+            }
 
             yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, blockCard));
         }

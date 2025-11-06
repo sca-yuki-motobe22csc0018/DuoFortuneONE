@@ -2140,6 +2140,8 @@ MonoBehaviour:
   inputRoomID: {fileID: 1957113205}
   buttonJoin: {fileID: 1967416310}
   buttonCancelJoin: {fileID: 2024562800}
+  playerPrefab:
+    RawGuidValue: 86b51f40531435b46a8d0cddb14996c7
   lobbyNetworkPrefab:
     RawGuidValue: ae43a1212885ee04b97c0a472600038e
 --- !u!4 &1396415257

@@ -1,28 +1,48 @@
 using UnityEngine;
 using TMPro;
-using UnityEngine.UI;
+using Fusion;
 
-public class PlayerManager : MonoBehaviour
+public class PlayerManager : NetworkBehaviour
 {
     [Header("Mana Settings")]
     public int maxMana = 2;
-    public int currentMana;
 
-    [Header("UI")]
-    public TMP_Text energyText;
+    [Networked] public int currentMana { get; set; }
 
-    [Header("References")]
-    public HandManager handManager;       // 手札管理
-    public LifeManager lifeManager;       // ライフ管理
-    public DiscardManager discardManager; // ★ 捨て札管理を追加
+    [Header("UI (Prefab 内)")]
+    public TMP_Text energyText;          // 自分のマナ
+    public TMP_Text opponentEnergyText;  // 相手のマナ
 
-    void Start()
+    [Header("Managers (Prefab 内)")]
+    public HandManager handManager;
+    public LifeManager lifeManager;
+
+    // GameManager・相手プレイヤー参照用
+    private GameManager gameManager;
+    private PlayerManager opponent;
+
+    // ================================
+    //  Spawn（Prefabが参加した時） 
+    // ================================
+    public override void Spawned()
     {
+        gameManager = FindAnyObjectByType<GameManager>();
+
+        // GameManagerに登録（プレイヤーリスト追加）
+        gameManager.RegisterPlayer(this);
+
+        // 自分だけUIを表示（相手のCanvasは隠す）
+        if (energyText != null)
+            energyText.transform.root.gameObject.SetActive(Object.HasInputAuthority);
+
+        // マナ初期値
         currentMana = maxMana;
         UpdateEnergyUI();
     }
 
-    // ====== マナ関連 ======
+    // ================================
+    //  マナ処理（Networked）
+    // ================================
 
     public bool SpendMana(int amount)
     {
@@ -30,6 +50,7 @@ public class PlayerManager : MonoBehaviour
         {
             currentMana -= amount;
             UpdateEnergyUI();
+            UpdateOpponentUI();
             return true;
         }
         Debug.Log("マナが足りません！");
@@ -40,12 +61,14 @@ public class PlayerManager : MonoBehaviour
     {
         currentMana = Mathf.Min(currentMana + amount, maxMana);
         UpdateEnergyUI();
+        UpdateOpponentUI();
     }
 
     public void ResetMana()
     {
         currentMana = maxMana;
         UpdateEnergyUI();
+        UpdateOpponentUI();
     }
 
     public void IncreaseMaxMana(int amount)
@@ -59,27 +82,31 @@ public class PlayerManager : MonoBehaviour
         maxMana += amount;
         currentMana = Mathf.Min(currentMana, maxMana);
         UpdateEnergyUI();
+        UpdateOpponentUI();
     }
 
-    // ====== 手札関連 ======
-
-    public void DrawInitialHand(DeckManager deckManager, int count)
-    {
-        if (deckManager == null || handManager == null) return;
-
-        for (int i = 0; i < count; i++)
-        {
-            deckManager.DrawCardToHand(this);
-        }
-    }
-
-    // ====== UI更新 ======
+    // ================================
+    //  UI 更新
+    // ================================
 
     public void UpdateEnergyUI()
     {
         if (energyText != null)
-        {
             energyText.text = $"{currentMana}/{maxMana}";
-        }
+    }
+
+    public void UpdateOpponentUI()
+    {
+        if (opponent != null && opponentEnergyText != null)
+            opponentEnergyText.text = $"{opponent.currentMana}/{opponent.maxMana}";
+    }
+
+    // ================================
+    //  相手プレイヤーの参照セット
+    // ================================
+    public void SetOpponent(PlayerManager pm)
+    {
+        opponent = pm;
+        UpdateOpponentUI();
     }
 }

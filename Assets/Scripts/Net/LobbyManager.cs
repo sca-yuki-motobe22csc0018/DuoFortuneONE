@@ -53,6 +53,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 
     // LobbyNetworkのPrefab参照
     [Header("Prefabs")]
+    public NetworkPrefabRef playerPrefab;
     [SerializeField] private NetworkPrefabRef lobbyNetworkPrefab;
 
     private bool isClientReady = false;
@@ -107,10 +108,13 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         runnerObject = new GameObject("NetworkRunnerObject");
         runner = runnerObject.AddComponent<NetworkRunner>();
         runner.ProvideInput = true;
+        var spawner = runnerObject.AddComponent<PlayerSpawner>();
+        spawner.playerPrefab = playerPrefab;
+        runner.AddCallbacks(spawner);
         runner.AddCallbacks(this);
         var sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
 
-        currentRoomID = GenerateRoomID(2);
+        currentRoomID = GenerateRoomID(6);
         var result = await runner.StartGame(new StartGameArgs()
         {
             GameMode = GameMode.Host,
@@ -172,6 +176,9 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         runnerObject = new GameObject("NetworkRunnerObject");
         runner = runnerObject.AddComponent<NetworkRunner>();
         runner.ProvideInput = true;
+        var spawner = runnerObject.AddComponent<PlayerSpawner>();
+        spawner.playerPrefab = playerPrefab;
+        runner.AddCallbacks(spawner);
         runner.AddCallbacks(this);
         var sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
 

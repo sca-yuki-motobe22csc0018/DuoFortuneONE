@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -6,193 +7,217 @@ using Fusion;
 
 public class GameManager : NetworkBehaviour
 {
-    [Header("References")]
-    public PlayerManager player1;
-    public PlayerManager player2;
-    public DeckManager deckManager;
-    public LifeManager lifeManager1;
-    public LifeManager lifeManager2;
+    public static GameManager Instance;
 
-    [Header("UI")]
+    [Header("Gameplay Managers (Scene Common)")]
+    public DeckManager deckManager;
+    public DiscardManager discardManager;
+    public BattleManager battleManager;
+
+    [Header("UI (Scene Common)")]
+    public EffectProcessWindow effectWindow;
+    public BlockWindow blockWindow;
+    public DefenceWindow defenceWindow;
+    public CardDetailPanel detailPanel;
+
+    [Header("Turn UI")]
+    public TMP_Text turnInfoText;
     public GameObject turnChoicePanel;
     public Button drawButton;
     public Button increaseManaButton;
     public Button endTurnButton;
-    public TMP_Text turnInfoText;
 
     [Header("Initial Settings")]
     public int initialHandCount = 5;
     public int initialLifeCount = 3;
 
-    // 先攻（Host決定・共有）
-    [Networked] public int FirstPlayerIndex { get; private set; } = -1;
+    // --- プレイヤーPrefab ---
+    [SerializeField] private NetworkPrefabRef playerPrefab;
 
-    // 現在のターンプレイヤー（0 = Host側, 1 = Client側）
+    // --- Prefab生成したプレイヤー格納（0=Host、1=Client） ---
+    public List<PlayerManager> players = new List<PlayerManager>();
+
+    [Networked] public int FirstPlayerIndex { get; private set; } = -1;
     [Networked] public int currentPlayerIndex { get; set; }
 
-    private int _prevPlayerIndex = -1; // ★ 前回値を保持して手動で検知
-
-    private PlayerManager currentPlayer;
+    private int _prevPlayerIndex = -1;
     private int turnNumber = 1;
+
     private NetworkRunner runner;
 
-    // ローカル端末のプレイヤーインデックス
-    private int MyIndex => (runner != null && runner.IsServer) ? 0 : 1;
-    private bool IsMyTurn() => currentPlayerIndex == MyIndex;
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     private void Start()
     {
         runner = FindAnyObjectByType<NetworkRunner>();
 
         if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
-        if (drawButton != null) drawButton.onClick.AddListener(OnDrawSelected);
-        if (increaseManaButton != null) increaseManaButton.onClick.AddListener(OnIncreaseManaSelected);
-        if (endTurnButton != null) endTurnButton.onClick.AddListener(OnEndTurn);
-        if (endTurnButton != null) endTurnButton.interactable = false;
-
-        StartCoroutine(InitGameCoroutine());
     }
 
+    // ============================================================
+    //  PlayerPrefab から呼ばれるプレイヤー登録
+    // ============================================================
+    public void RegisterPlayer(PlayerManager pm)
+    {
+        if (!players.Contains(pm))
+            players.Add(pm);
+
+        Debug.Log($"[GameManager] RegisterPlayer: 現在 {players.Count}人");
+
+        // ✅ 2人揃ったら1回だけゲーム開始
+        if (players.Count == 2)
+        {
+            // 相手参照セット
+            players[0].SetOpponent(players[1]);
+            players[1].SetOpponent(players[0]);
+
+            // ✅ UIリスナー登録
+            drawButton.onClick.AddListener(OnDrawSelected);
+            increaseManaButton.onClick.AddListener(OnIncreaseManaSelected);
+            endTurnButton.onClick.AddListener(OnEndTurn);
+
+            // ✅ ゲーム開始は1回だけ
+            StartCoroutine(InitGameCoroutine());
+        }
+    }
+
+    // ============================================================
+    //  ゲーム開始処理（2人揃ったら呼ばれる）
+    // ============================================================
     private IEnumerator InitGameCoroutine()
     {
-        // ★ Runnerが有効になるまで待つ
-        while (NetworkRunner.GetRunnerForScene(gameObject.scene) == null)
-            yield return null;
-
-        // ★ PlayerManagerが確実に見つかるまで待つ
-        while (FindObjectOfType<PlayerManager>() == null)
-            yield return null;
-
-        yield return null;
-
-        // 山札・ライフ・手札初期化
+        // 山札初期化（共通）
         if (deckManager != null)
             deckManager.InitializeDeck();
 
-        if (lifeManager1 != null)
-            lifeManager1.SetupInitialLife(initialLifeCount, deckManager);
-        if (lifeManager2 != null)
-            lifeManager2.SetupInitialLife(initialLifeCount, deckManager);
-
-        if (deckManager != null)
+        // ライフセット
+        foreach (var p in players)
         {
-            for (int i = 0; i < initialHandCount; i++)
-            {
-                deckManager.DrawCardToHand(player1);
-                deckManager.DrawCardToHand(player2);
-            }
+            if (p.lifeManager != null)
+                p.lifeManager.SetupInitialLife(initialLifeCount, deckManager);
         }
 
-        // --- Hostが先攻を決定し共有 ---
+        // 初期手札ドロー
+        for (int i = 0; i < initialHandCount; i++)
+        {
+            deckManager.DrawCardToHand(players[0]);
+            deckManager.DrawCardToHand(players[1]);
+        }
+
+        // --- Host側で先攻決定 ---
         if (Object.HasStateAuthority)
         {
             int mode = LobbyManager.SelectedTurnMode;
 
             switch (mode)
             {
-                case 0: // ランダム
+                case 0:
                     FirstPlayerIndex = Random.Range(0, 2);
-                    Debug.Log($"[Host] ランダム決定 → {(FirstPlayerIndex == 0 ? "Host先攻" : "Client先攻")}");
+                    Debug.Log($"[Host] ランダム先攻 → {FirstPlayerIndex}");
                     break;
-                case 1: // Host先攻
+
+                case 1:
                     FirstPlayerIndex = 0;
-                    Debug.Log("[Host] 先攻: Host");
                     break;
-                case 2: // Client先攻
+
+                case 2:
                     FirstPlayerIndex = 1;
-                    Debug.Log("[Host] 先攻: Client");
                     break;
             }
+
+            currentPlayerIndex = FirstPlayerIndex;
         }
 
-        Invoke(nameof(StartGameTurn), 0.5f);
+        yield return new WaitForSeconds(0.2f);
+
+        StartTurnInternal();
     }
 
-    private void StartGameTurn()
+    // ============================================================
+    //  ターン開始処理（UIなどの切替）
+    // ============================================================
+    private void StartTurnInternal()
     {
-        if (Object.HasStateAuthority)
-        {
-            // Hostのみ初期ターン設定
-            currentPlayerIndex = (FirstPlayerIndex >= 0) ? FirstPlayerIndex : 0;
-        }
+        var player = players[currentPlayerIndex];
 
-        // 初回反映
-        ApplyTurnFromIndex();
-        turnNumber = 1;
-        _prevPlayerIndex = currentPlayerIndex;
-    }
-
-    // =========================
-    //   ターン制御
-    // =========================
-
-    private void StartTurn(PlayerManager player)
-    {
-        currentPlayer = player;
-
-        if (turnChoicePanel != null)
-            turnChoicePanel.SetActive(IsMyTurn());
-
-        if (endTurnButton != null)
-            endTurnButton.interactable = IsMyTurn();
-
+        // UI表示
         if (turnInfoText != null)
-            turnInfoText.text = $"Turn {turnNumber}: {player.name}";
+        {
+            string text = player.Object.HasInputAuthority ?
+                "あなたのターン" : "相手のターン";
+
+            turnInfoText.text = $"Turn {turnNumber}: {text}";
+        }
+
+        // ✅ 自分のターンだけ UI ON
+        if (player.Object.HasInputAuthority)
+        {
+            if (turnChoicePanel != null) turnChoicePanel.SetActive(true);
+            if (endTurnButton != null) endTurnButton.interactable = true;
+
+            if (effectWindow != null)
+                StartCoroutine(effectWindow.ShowProcess("あなたのターン"));
+        }
+        else
+        {
+            if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
+            if (endTurnButton != null) endTurnButton.interactable = false;
+        }
     }
+
+    // ============================================================
+    //  UI ボタン処理
+    // ============================================================
 
     private void OnDrawSelected()
     {
-        if (!IsMyTurn()) return;
+        var player = players[currentPlayerIndex];
+        if (!player.Object.HasInputAuthority) return;
 
-        if (deckManager != null && currentPlayer != null)
-        {
-            deckManager.DrawCardToHand(currentPlayer);
-            deckManager.DrawCardToHand(currentPlayer);
-        }
+        deckManager.DrawCardToHand(player);
+        deckManager.DrawCardToHand(player);
 
-        if (currentPlayer != null) currentPlayer.ResetMana();
-        if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
+        player.ResetMana();
+        turnChoicePanel.SetActive(false);
     }
 
     private void OnIncreaseManaSelected()
     {
-        if (!IsMyTurn()) return;
+        var player = players[currentPlayerIndex];
+        if (!player.Object.HasInputAuthority) return;
 
-        if (currentPlayer != null)
-        {
-            currentPlayer.IncreaseMaxMana(1);
-            currentPlayer.ResetMana();
-        }
+        player.IncreaseMaxMana(1);
+        player.ResetMana();
 
-        if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
+        turnChoicePanel.SetActive(false);
     }
 
     public void OnEndTurn()
     {
-        if (!IsMyTurn()) return;
+        var player = players[currentPlayerIndex];
+        if (!player.Object.HasInputAuthority) return;
 
-        if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
-        if (endTurnButton != null) endTurnButton.interactable = false;
+        turnChoicePanel.SetActive(false);
+        endTurnButton.interactable = false;
 
         if (Object.HasStateAuthority)
-        {
             NextTurn();
-        }
         else
-        {
             Rpc_RequestNextTurn();
-        }
     }
 
-    // Hostのみが呼ぶ：ターンを進める
+    // ============================================================
+    //  ターンを進める（Hostだけ）
+    // ============================================================
     private void NextTurn()
     {
         if (!Object.HasStateAuthority) return;
 
-        // 終了時の処理があればここに
-        // ...
-
         currentPlayerIndex = (currentPlayerIndex == 0) ? 1 : 0;
+
         if (currentPlayerIndex == 0)
             turnNumber++;
     }
@@ -203,40 +228,17 @@ public class GameManager : NetworkBehaviour
         NextTurn();
     }
 
-    // =========================
-    //   手動でのターン変化検知
-    // =========================
-    public override void FixedUpdateNetwork()
+    // ============================================================
+    //  Fusion 推奨：RenderでNetworkedの変更監視
+    // ============================================================
+    public override void Render()
     {
-        // Fusion 2.0.8では OnChanged 廃止 → 手動比較
+        if (players.Count < 2) return;
+
         if (currentPlayerIndex != _prevPlayerIndex)
         {
             _prevPlayerIndex = currentPlayerIndex;
-            OnTurnIndexChanged();
+            StartTurnInternal();
         }
-    }
-
-    private void OnTurnIndexChanged()
-    {
-        ApplyTurnFromIndex();
-    }
-
-    private void ApplyTurnFromIndex()
-    {
-        currentPlayer = (currentPlayerIndex == 0) ? player1 : player2;
-
-        if (turnChoicePanel != null)
-            turnChoicePanel.SetActive(IsMyTurn());
-
-        if (endTurnButton != null)
-            endTurnButton.interactable = IsMyTurn();
-
-        if (turnInfoText != null)
-        {
-            string youOrOpp = IsMyTurn() ? "あなたのターン" : "相手のターン";
-            turnInfoText.text = $"Turn {turnNumber}: {currentPlayer.name}（{youOrOpp}）";
-        }
-
-        StartTurn(currentPlayer);
     }
 }
