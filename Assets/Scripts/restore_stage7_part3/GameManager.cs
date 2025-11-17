@@ -89,48 +89,50 @@ public class GameManager : NetworkBehaviour
     // ============================================================
     private IEnumerator InitGameCoroutine()
     {
-        // 山札初期化（共通）
-        if (deckManager != null)
-            deckManager.InitializeDeck();
-
-        // ライフセット
-        foreach (var p in players)
-        {
-            if (p.lifeManager != null)
-                p.lifeManager.SetupInitialLife(initialLifeCount, deckManager);
-        }
-
-        // 初期手札ドロー
-        for (int i = 0; i < initialHandCount; i++)
-        {
-            deckManager.DrawCardToHand(players[0]);
-            deckManager.DrawCardToHand(players[1]);
-        }
-
-        // --- Host側で先攻決定 ---
+        // Host だけが山札と先攻決定・配布を担当
         if (Object.HasStateAuthority)
         {
-            int mode = LobbyManager.SelectedTurnMode;
+            if (deckManager != null)
+                deckManager.InitializeDeck();
 
+            // --- 先攻決定 ---
+            int mode = LobbyManager.SelectedTurnMode;
             switch (mode)
             {
                 case 0:
                     FirstPlayerIndex = Random.Range(0, 2);
                     Debug.Log($"[Host] ランダム先攻 → {FirstPlayerIndex}");
                     break;
-
                 case 1:
                     FirstPlayerIndex = 0;
                     break;
-
                 case 2:
                     FirstPlayerIndex = 1;
                     break;
             }
 
             currentPlayerIndex = FirstPlayerIndex;
+
+            int first = FirstPlayerIndex;
+            int second = (first == 0) ? 1 : 0;
+
+            // 山札から ID を抜き取る（先攻5 → 後攻5 → 先攻Life3 → 後攻Life3）
+            int[] firstHandIDs = deckManager.DrawCardIDs(initialHandCount);
+            int[] secondHandIDs = deckManager.DrawCardIDs(initialHandCount);
+            int[] firstLifeIDs = deckManager.DrawCardIDs(initialLifeCount);
+            int[] secondLifeIDs = deckManager.DrawCardIDs(initialLifeCount);
+
+            // players[0], players[1] に対応する形に並べ替え
+            int[] p0Hand = (first == 0) ? firstHandIDs : secondHandIDs;
+            int[] p1Hand = (first == 0) ? secondHandIDs : firstHandIDs;
+            int[] p0Life = (first == 0) ? firstLifeIDs : secondLifeIDs;
+            int[] p1Life = (first == 0) ? secondLifeIDs : firstLifeIDs;
+
+            // ★ 全員に初期手札＆ライフを反映
+            RPC_InitHandsAndLife(p0Hand, p1Hand, p0Life, p1Life);
         }
 
+        // ちょっと待ってからターン開始（RPC反映待ち）
         yield return new WaitForSeconds(0.2f);
 
         StartTurnInternal();
@@ -174,14 +176,24 @@ public class GameManager : NetworkBehaviour
 
     private void OnDrawSelected()
     {
-        var player = players[currentPlayerIndex];
-        if (!player.Object.HasInputAuthority) return;
+        if (runner == null)
+            runner = FindAnyObjectByType<NetworkRunner>();
 
-        deckManager.DrawCardToHand(player);
-        deckManager.DrawCardToHand(player);
+        if (runner == null)
+        {
+            Debug.LogError("OnDrawSelected: NetworkRunner が見つかりません。");
+            return;
+        }
 
-        player.ResetMana();
-        turnChoicePanel.SetActive(false);
+        // ★ ローカルで勝手に引かず、「引きたい」とHostにお願いする
+        RPC_RequestDraw(runner.LocalPlayer);
+
+        // もし「ドロー or チャージの選択ウィンドウ」を閉じる処理があればここでやる
+        if (turnChoicePanel != null)
+            turnChoicePanel.SetActive(false);
+
+        // このあと、メインフェイズ開始やフラグの更新があるなら、それはそのままでOK
+        // 例: isFirstTurnChoiceDone = true; とか
     }
 
     private void OnIncreaseManaSelected()
@@ -207,6 +219,144 @@ public class GameManager : NetworkBehaviour
             NextTurn();
         else
             Rpc_RequestNextTurn();
+    }
+
+    // ============================================================
+    //  初期手札＆ライフ配布用 RPC（Host → 全員）
+    // ============================================================
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_InitHandsAndLife(int[] p0Hand, int[] p1Hand, int[] p0Life, int[] p1Life)
+    {
+        if (players.Count < 2)
+        {
+            Debug.LogWarning("RPC_InitHandsAndLife: プレイヤーが2人揃っていません。");
+            return;
+        }
+
+        if (deckManager == null)
+        {
+            Debug.LogError("RPC_InitHandsAndLife: deckManager が設定されていません。");
+            return;
+        }
+
+        var p0 = players[0];
+        var p1 = players[1];
+
+        // ---------- 手札 ----------
+        if (p0.handManager != null)
+        {
+            foreach (var id in p0Hand)
+            {
+                var data = deckManager.GetCardDataById(id);
+                p0.handManager.AddCardFromData(data);
+            }
+        }
+
+        if (p1.handManager != null)
+        {
+            foreach (var id in p1Hand)
+            {
+                var data = deckManager.GetCardDataById(id);
+                p1.handManager.AddCardFromData(data);
+            }
+        }
+
+        // ---------- ライフ ----------
+        if (p0.lifeManager != null)
+        {
+            foreach (var id in p0Life)
+            {
+                var data = deckManager.GetCardDataById(id);
+                p0.lifeManager.AddLife(data);
+            }
+        }
+
+        if (p1.lifeManager != null)
+        {
+            foreach (var id in p1Life)
+            {
+                var data = deckManager.GetCardDataById(id);
+                p1.lifeManager.AddLife(data);
+            }
+        }
+
+        Debug.Log("RPC_InitHandsAndLife: 初期手札＆ライフを反映しました。");
+    }
+
+    // プレイヤーからのドロー要求（クライアント → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    private void RPC_RequestDraw(PlayerRef requester)
+    {
+        if (players.Count < 2 || deckManager == null)
+            return;
+
+        // requester がどの index のプレイヤーかを特定
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning($"RPC_RequestDraw: requester {requester} に対応する PlayerManager が見つかりません。");
+            return;
+        }
+
+        // 今のターンのプレイヤー以外からの要求は無視
+        if (playerIndex != currentPlayerIndex)
+        {
+            Debug.Log($"RPC_RequestDraw: ターンプレイヤーではないため無視します。 index={playerIndex}, current={currentPlayerIndex}");
+            return;
+        }
+
+        // 山札から1枚IDを引く（Host だけ山札を触る）
+        int[] ids = deckManager.DrawCardIDs(1);
+        if (ids.Length == 0)
+        {
+            Debug.Log("RPC_RequestDraw: 山札が空です。");
+            return;
+        }
+
+        int cardId = ids[0];
+
+        // 全員に「playerIndex が cardId を引いた」と通知
+        RPC_ApplyDraw(playerIndex, cardId);
+    }
+
+    // 実際に手札にカードを追加するRPC（Host → 全員）
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ApplyDraw(int playerIndex, int cardId)
+    {
+        if (deckManager == null)
+        {
+            Debug.LogError("RPC_ApplyDraw: deckManager が設定されていません。");
+            return;
+        }
+
+        if (playerIndex < 0 || playerIndex >= players.Count)
+        {
+            Debug.LogWarning($"RPC_ApplyDraw: 不正な playerIndex={playerIndex}");
+            return;
+        }
+
+        var pm = players[playerIndex];
+        if (pm == null || pm.handManager == null)
+        {
+            Debug.LogWarning("RPC_ApplyDraw: PlayerManager または handManager がありません。");
+            return;
+        }
+
+        // IDからカードデータを復元して手札に追加
+        var data = deckManager.GetCardDataById(cardId);
+        pm.handManager.AddCardFromData(data);
+
+        Debug.Log($"RPC_ApplyDraw: playerIndex={playerIndex} に cardID={cardId} をドローさせました。");
     }
 
     // ============================================================

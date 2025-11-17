@@ -289,9 +289,10 @@ public class HandManager : MonoBehaviour
             Debug.LogError("SpriteCard に CardGenerator が見つかりません！");
         }
 
-        // --- リストに追加して並び替え更新 ---
-        handCards.Add(newCard);
-        UpdateCardPositions();
+        // ★★ ここを変更 ★★
+        // 直接 handCards.Add(...) するのではなく、
+        // 既存の AddCard() を通して「ソート＋並び替え」を統一する
+        AddCard(newCard);
 
         Debug.Log($"手札にカード {data.name} を追加しました。");
     }

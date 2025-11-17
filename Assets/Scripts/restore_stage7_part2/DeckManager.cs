@@ -116,6 +116,28 @@ public class DeckManager : MonoBehaviour
         player.handManager.AddCard(cardGO);
     }
 
+    // ★ 山札から「IDだけ」を複数枚まとめて引く（Host専用で使用）
+    public int[] DrawCardIDs(int count)
+    {
+        if (count <= 0) return new int[0];
+
+        int drawCount = Mathf.Min(count, deckStack.Count);
+        int[] result = new int[drawCount];
+
+        for (int i = 0; i < drawCount; i++)
+        {
+            result[i] = deckStack.Pop();
+        }
+
+        return result;
+    }
+
+    // ★ 外部から CardID → CardData を取るためのラッパー
+    public CardGenerator.CardData GetCardDataById(int cardID)
+    {
+        return CreateCardDataById(cardID);
+    }
+
     /// <summary>
     /// ★ 追加: 山札から「データだけ」引く（Life用）
     /// </summary>

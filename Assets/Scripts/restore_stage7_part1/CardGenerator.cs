@@ -106,6 +106,9 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         myData = data;
 
+        // ★ これを追加
+        cardID = data.id;
+
         // --- テキスト設定 ---
         if (costText != null)
             costText.text = data.cost.ToString();
