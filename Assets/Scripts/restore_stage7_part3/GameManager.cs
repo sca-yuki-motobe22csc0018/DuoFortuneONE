@@ -185,26 +185,47 @@ public class GameManager : NetworkBehaviour
             return;
         }
 
-        // ★ ローカルで勝手に引かず、「引きたい」とHostにお願いする
-        RPC_RequestDraw(runner.LocalPlayer);
+        // ★ 「このドローではマナも回復してほしい」ので true を渡す
+        RPC_RequestDraw(runner.LocalPlayer, true);
 
-        // もし「ドロー or チャージの選択ウィンドウ」を閉じる処理があればここでやる
         if (turnChoicePanel != null)
             turnChoicePanel.SetActive(false);
-
-        // このあと、メインフェイズ開始やフラグの更新があるなら、それはそのままでOK
-        // 例: isFirstTurnChoiceDone = true; とか
     }
 
     private void OnIncreaseManaSelected()
     {
-        var player = players[currentPlayerIndex];
-        if (!player.Object.HasInputAuthority) return;
+        if (runner == null)
+            runner = FindAnyObjectByType<NetworkRunner>();
 
+        if (runner == null)
+        {
+            Debug.LogError("OnIncreaseManaSelected: NetworkRunner が見つかりません。");
+            return;
+        }
+
+        // ★ 自分ではマナをいじらない。Hostに「チャージしたい」と伝えるだけ
+        RPC_RequestCharge(runner.LocalPlayer);
+
+        // UIは今まで通り閉じてOK
+        if (turnChoicePanel != null)
+            turnChoicePanel.SetActive(false);
+    }
+
+
+
+    // ★ プレイヤー index を受け取って、そのプレイヤーにチャージ処理を適用する共通関数
+    private void ApplyChargeInternal(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= players.Count)
+            return;
+
+        var player = players[playerIndex];
+        if (player == null)
+            return;
+
+        // ★ ここに元の OnIncreaseManaSelected の「中身」だけ移植する
         player.IncreaseMaxMana(1);
         player.ResetMana();
-
-        turnChoicePanel.SetActive(false);
     }
 
     public void OnEndTurn()
@@ -281,11 +302,20 @@ public class GameManager : NetworkBehaviour
         }
 
         Debug.Log("RPC_InitHandsAndLife: 初期手札＆ライフを反映しました。");
+
+        // ★ 初期手札＆ライフ反映が終わったタイミングで、手札枚数UIを再計算
+        foreach (var pm in players)
+        {
+            if (pm != null && pm.Object.HasInputAuthority)
+            {
+                pm.UpdateHandCountUI();
+            }
+        }
     }
 
     // プレイヤーからのドロー要求（クライアント → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    private void RPC_RequestDraw(PlayerRef requester)
+    private void RPC_RequestDraw(PlayerRef requester, bool resetMana)
     {
         if (players.Count < 2 || deckManager == null)
             return;
@@ -325,13 +355,13 @@ public class GameManager : NetworkBehaviour
 
         int cardId = ids[0];
 
-        // 全員に「playerIndex が cardId を引いた」と通知
-        RPC_ApplyDraw(playerIndex, cardId);
+        // ★ 「このドローでマナを回復するか？」フラグも渡す
+        RPC_ApplyDraw(playerIndex, cardId, resetMana);
     }
 
     // 実際に手札にカードを追加するRPC（Host → 全員）
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_ApplyDraw(int playerIndex, int cardId)
+    private void RPC_ApplyDraw(int playerIndex, int cardId, bool resetMana)
     {
         if (deckManager == null)
         {
@@ -356,7 +386,13 @@ public class GameManager : NetworkBehaviour
         var data = deckManager.GetCardDataById(cardId);
         pm.handManager.AddCardFromData(data);
 
-        Debug.Log($"RPC_ApplyDraw: playerIndex={playerIndex} に cardID={cardId} をドローさせました。");
+        // ★ 「このドローはターン開始時の選択」ならマナを回復
+        if (resetMana)
+        {
+            pm.ResetMana();
+        }
+
+        Debug.Log($"RPC_ApplyDraw: playerIndex={playerIndex} に cardID={cardId} をドローさせました。 Reset={resetMana}");
     }
 
     // ============================================================
@@ -376,6 +412,59 @@ public class GameManager : NetworkBehaviour
     private void Rpc_RequestNextTurn()
     {
         NextTurn();
+    }
+
+    // プレイヤーからのチャージ要求（クライアント → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    private void RPC_RequestCharge(PlayerRef requester)
+    {
+        if (players.Count < 2)
+            return;
+
+        // requester がどのプレイヤーか特定
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning($"RPC_RequestCharge: requester {requester} に対応する PlayerManager が見つかりません。");
+            return;
+        }
+
+        // ターンプレイヤー以外からのリクエストは無視
+        if (playerIndex != currentPlayerIndex)
+        {
+            Debug.Log($"RPC_RequestCharge: ターンプレイヤーではないため無視 index={playerIndex}, current={currentPlayerIndex}");
+            return;
+        }
+
+        // ★ Host から全員へ「このプレイヤーをチャージしろ」と通知
+        RPC_ApplyCharge(playerIndex);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ApplyCharge(int playerIndex)
+    {
+        // ★ 実際のマナ計算（Max+1 / Reset）を適用
+        ApplyChargeInternal(playerIndex);
+
+        // ★ 各クライアントで、自分のUIから見た「相手のマナ表示」を更新
+        foreach (var pm in players)
+        {
+            if (pm != null)
+            {
+                pm.UpdateEnergyUI();      // 念のため自分側も更新
+                pm.UpdateOpponentUI();    // 相手側表示も更新
+            }
+        }
     }
 
     // ============================================================

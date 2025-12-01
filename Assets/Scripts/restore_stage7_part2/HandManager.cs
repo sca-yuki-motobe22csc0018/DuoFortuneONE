@@ -38,6 +38,12 @@ public class HandManager : MonoBehaviour
 
     public DiscardManager discardManager;
 
+    // 手札の持ち主（PlayerManager側からインスペクタで割り当て）
+    public PlayerManager ownerPlayer;
+
+    // 手札の枚数を外から参照できるようにするプロパティ
+    public int CardCount => handCards.Count;
+
     void Awake()
     {
         if (discardManager == null)
@@ -67,6 +73,13 @@ public class HandManager : MonoBehaviour
         });
 
         UpdateCardPositions();
+
+        if (ownerPlayer != null)
+        {
+            ownerPlayer.NotifyHandChangedForBothSides();
+            if (ownerPlayer.opponent != null)
+                ownerPlayer.opponent.NotifyHandChangedForBothSides();
+        }
     }
 
     public void RemoveCard(GameObject card)
@@ -296,4 +309,6 @@ public class HandManager : MonoBehaviour
 
         Debug.Log($"手札にカード {data.name} を追加しました。");
     }
+
+
 }
