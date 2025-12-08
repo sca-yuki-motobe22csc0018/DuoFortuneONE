@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections; // ★ 追加（コルーチン用）
+using Fusion;
 
 public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
@@ -549,15 +550,19 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     // ★★ ここをネット対応版に変更 ★★
     void DoDraw(int count)
     {
-        var gm = FindAnyObjectByType<GameManager>();
-        if (gm == null) return;
+        if (count <= 0) return;
 
-        // 山札を触るのは Host（StateAuthority）のみ
-        if (gm.Object != null && gm.Object.HasStateAuthority)
+        var gm = FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm == null || runner == null)
         {
-            gm.EffectDraw(player, count);
+            Debug.LogWarning("DoDraw: GameManager または NetworkRunner が見つかりません。");
+            return;
         }
-        // Client側では何もしない（HostのEffectDraw → RPC_ApplyDraw で手札が増える）
+
+        // ★ Host/Client 関係なく、「このプレイヤーが効果ドローしたい」と Host に依頼
+        gm.RPC_RequestEffectDraw(runner.LocalPlayer, count);
     }
 
     void DoManaBoost(int amount)

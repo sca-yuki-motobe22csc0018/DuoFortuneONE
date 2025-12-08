@@ -187,6 +187,7 @@ public class GameManager : NetworkBehaviour
 
         // ★ 「このドローではマナも回復してほしい」ので true を渡す
         RPC_RequestDraw(runner.LocalPlayer, true);
+        RPC_RequestDraw(runner.LocalPlayer, true);
 
         if (turnChoicePanel != null)
             turnChoicePanel.SetActive(false);
@@ -357,6 +358,49 @@ public class GameManager : NetworkBehaviour
 
         // ★ 「このドローでマナを回復するか？」フラグも渡す
         RPC_ApplyDraw(playerIndex, cardId, resetMana);
+    }
+
+    // 効果ドロー用のリクエスト（クライアント → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectDraw(PlayerRef requester, int count)
+    {
+        if (deckManager == null) return;
+        if (count <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        // requester がどの PlayerManager か特定
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning($"RPC_RequestEffectDraw: requester {requester} に対応する PlayerManager が見つかりません。");
+            return;
+        }
+
+        // 山札から count 枚 ID を引く（Host だけ山札を触る）
+        int[] ids = deckManager.DrawCardIDs(count);
+        if (ids == null || ids.Length == 0)
+        {
+            Debug.Log("RPC_RequestEffectDraw: 山札が空、または ID を取得できませんでした。");
+            return;
+        }
+
+        // 効果ドローではマナ回復はしないので resetMana = false 固定
+        foreach (var id in ids)
+        {
+            RPC_ApplyDraw(playerIndex, id, false);
+        }
+
+        Debug.Log($"RPC_RequestEffectDraw: playerIndex={playerIndex} に効果ドロー count={count} を適用しました。");
     }
 
     // 実際に手札にカードを追加するRPC（Host → 全員）
