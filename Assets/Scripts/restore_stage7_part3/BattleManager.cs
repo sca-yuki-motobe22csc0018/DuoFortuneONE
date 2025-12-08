@@ -153,11 +153,13 @@ public class BattleManager : MonoBehaviour
                 case "Draw":
                     if (int.TryParse(v, out int drawN))
                     {
-                        var deck = FindAnyObjectByType<DeckManager>();
-                        if (deck != null)
+                        // ★ 修正ポイント：ローカルで DeckManager に直接ドローさせない
+                        //    → Host だけが GameManager 経由で EffectDraw し、
+                        //      RPC_ApplyDraw で全員の手札が同期される
+                        var gm = GameManager.Instance;
+                        if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
                         {
-                            for (int d = 0; d < drawN; d++)
-                                deck.DrawCardToHand(defender);
+                            gm.EffectDraw(defender, drawN);
                         }
                     }
                     break;

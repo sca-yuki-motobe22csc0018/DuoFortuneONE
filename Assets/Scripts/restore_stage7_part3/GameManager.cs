@@ -396,6 +396,64 @@ public class GameManager : NetworkBehaviour
     }
 
     // ============================================================
+    //  効果ドロー用 共通関数（Host だけ山札を触る）
+    // ============================================================
+    public void EffectDraw(PlayerManager targetPlayer, int drawCount)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (deckManager == null) return;
+        if (targetPlayer == null) return;
+        if (drawCount <= 0) return;
+
+        int playerIndex = players.IndexOf(targetPlayer);
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning("[EffectDraw] targetPlayer が players に見つかりません。");
+            return;
+        }
+
+        int[] ids = deckManager.DrawCardIDs(drawCount);
+        if (ids == null || ids.Length == 0)
+        {
+            Debug.Log("[EffectDraw] 山札が空です。");
+            return;
+        }
+
+        // 効果ドローではマナを回復しないので resetMana = false
+        foreach (var id in ids)
+        {
+            RPC_ApplyDraw(playerIndex, id, false);
+        }
+    }
+
+    // 現在のターンプレイヤーに効果ドローさせる簡易版
+    public void EffectDrawForCurrentPlayer(int drawCount)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (deckManager == null) return;
+        if (drawCount <= 0) return;
+
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
+        {
+            Debug.LogWarning("[EffectDrawForCurrentPlayer] currentPlayerIndex が不正です。");
+            return;
+        }
+
+        int[] ids = deckManager.DrawCardIDs(drawCount);
+        if (ids == null || ids.Length == 0)
+        {
+            Debug.Log("[EffectDrawForCurrentPlayer] 山札が空です。");
+            return;
+        }
+
+        foreach (var id in ids)
+        {
+            RPC_ApplyDraw(currentPlayerIndex, id, false);
+        }
+    }
+
+
+    // ============================================================
     //  ターンを進める（Hostだけ）
     // ============================================================
     private void NextTurn()

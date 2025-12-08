@@ -11783,8 +11783,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cardPrefab: {fileID: 507064939415283640, guid: 1b16b855deafea94e8f7d582f1f919e1, type: 3}
   defaultDeckCSV: TestDeck.csv
-  player1DeckCSV: TestDeck.csv
-  player2DeckCSV: TestDeck.csv
+  player1DeckCSV: DefaultDeck.csv
+  player2DeckCSV: DefaultDeck.csv
   drawPosition: {x: 0, y: 0, z: 0}
   cardScale: 0.33
 --- !u!4 &2054135378

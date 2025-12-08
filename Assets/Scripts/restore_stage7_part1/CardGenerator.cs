@@ -55,7 +55,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectValue6;
     }
 
-    
+
 
     [HideInInspector] public PlayerManager player;
     public DiscardManager discardManager;
@@ -106,7 +106,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         myData = data;
 
-        // ★ これを追加
+        // ★ cardID を必ず同期
         cardID = data.id;
 
         // --- テキスト設定 ---
@@ -256,7 +256,11 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             else
             {
                 if (c == '"') inQuotes = true;
-                else if (c == ',') { currentRow.Add(currentField.ToString()); currentField.Clear(); }
+                else if (c == ',')
+                {
+                    currentRow.Add(currentField.ToString());
+                    currentField.Clear();
+                }
                 else if (c == '\r' && next == '\n')
                 {
                     currentRow.Add(currentField.ToString());
@@ -542,13 +546,18 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
+    // ★★ ここをネット対応版に変更 ★★
     void DoDraw(int count)
     {
-        var deck = FindAnyObjectByType<DeckManager>();
-        if (deck == null) return;
+        var gm = FindAnyObjectByType<GameManager>();
+        if (gm == null) return;
 
-        for (int i = 0; i < count; i++)
-            deck.DrawCardToHand(player);
+        // 山札を触るのは Host（StateAuthority）のみ
+        if (gm.Object != null && gm.Object.HasStateAuthority)
+        {
+            gm.EffectDraw(player, count);
+        }
+        // Client側では何もしない（HostのEffectDraw → RPC_ApplyDraw で手札が増える）
     }
 
     void DoManaBoost(int amount)
@@ -580,10 +589,11 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         var gm = FindAnyObjectByType<GameManager>();
         if (gm != null) gm.OnEndTurn();
     }
+
     private IEnumerator DoDrawRoutine(int n)
     {
         yield return EffectProcessWindow.Instance.ShowProcess($"カードを {n} 枚引きます。");
-        DoDraw(n);         // 既存の void 関数
+        DoDraw(n);         // ★ 中身がネット対応になった
         yield break;
     }
 
