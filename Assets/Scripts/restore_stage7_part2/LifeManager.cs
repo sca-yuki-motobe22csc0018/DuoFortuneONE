@@ -13,6 +13,10 @@ public class LifeManager : MonoBehaviour
     private Dictionary<GameObject, CardGenerator.CardData> lifeDataDict = new Dictionary<GameObject, CardGenerator.CardData>();
     private CardGenerator.CardData lastDestroyedCard = null;
 
+    // 現在のライフ枚数を外から参照するためのプロパティ
+    public int LifeCount => lifeCards.Count;
+
+
     /// <summary>
     /// 初期ライフを山札からセットアップ（データのみドローして配置）
     /// </summary>
@@ -122,12 +126,10 @@ public class LifeManager : MonoBehaviour
         int count = lifeCards.Count;
         if (count == 0) return;
 
-        // 自動spacing計算
         float spacing = (count > 1)
             ? Mathf.Max(maxWidth / (count - 1), minSpacing)
             : 0f;
 
-        // 合計幅を計算して中央寄せ
         float totalWidth = spacing * (count - 1);
         float startX = -totalWidth / 2f;
 
@@ -136,5 +138,13 @@ public class LifeManager : MonoBehaviour
             Vector3 pos = new Vector3(startX + spacing * i, 0, 0);
             lifeCards[i].transform.localPosition = pos;
         }
+
+        // ★ ライフが増減したので、このクライアントのUIを更新
+        var gm = GameManager.Instance;
+        if (gm != null)
+        {
+            gm.UpdateAllLifeUIForLocal();
+        }
     }
+
 }

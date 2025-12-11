@@ -21,8 +21,16 @@ public class BattleManager : MonoBehaviour
     /// </summary>
     public IEnumerator HandleAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard)
     {
+        // ★ 追加：Host 以外では戦闘処理をしない
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null || !gm.Object.HasStateAuthority)
+            yield break;
+
         if (attacker == null || defender == null || attackCard == null)
             yield break;
+
+        // defender が players の何番目かを覚えておく（ライフ同期用）
+        int defenderIndex = gm.players.IndexOf(defender);
 
         // ① 攻撃宣言
         yield return EffectProcessWindow.Instance.ShowProcess($"攻撃！ 〔{attackCard.name}〕");
@@ -75,7 +83,14 @@ public class BattleManager : MonoBehaviour
         CardGenerator.CardData destroyedLifeCard = null;
         if (defender.lifeManager != null)
         {
+            // ★ Host 側で 1 回だけライフを削る
             destroyedLifeCard = defender.lifeManager.RemoveLife();
+
+            // ★ 他クライアントにも「同じプレイヤーのライフを1枚削れ」と通知
+            if (defenderIndex >= 0)
+            {
+                gm.RPC_SyncRemoveLife(defenderIndex);
+            }
         }
         else
         {
@@ -101,6 +116,7 @@ public class BattleManager : MonoBehaviour
         // ⑤ 攻撃終了
         yield return EffectProcessWindow.Instance.ShowProcess("攻撃完了。");
     }
+
 
     /// <summary>
     /// Block効果（Attack付き対応版）
@@ -137,8 +153,18 @@ public class BattleManager : MonoBehaviour
                 case "LifeAdd":
                     if (int.TryParse(v, out int lifePlus) && defender != null && defender.lifeManager != null)
                     {
-                        for (int k = 0; k < lifePlus; k++)
-                            defender.lifeManager.AddLife();
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null)
+                        {
+                            // Host 側で山札からライフカードを引き → 全員に同期
+                            gm.AddLifeToPlayer(defender, lifePlus);
+                        }
+                        else
+                        {
+                            // 念のためのオフライン用フォールバック
+                            for (int k = 0; k < lifePlus; k++)
+                                defender.lifeManager.AddLife();
+                        }
                     }
                     break;
 

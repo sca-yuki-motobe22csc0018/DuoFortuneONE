@@ -582,8 +582,20 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     void DoLifeAdd(int amount)
     {
-        if (player != null && player.lifeManager != null)
+        if (amount <= 0 || player == null)
+            return;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
         {
+            // Host に「このプレイヤーが LifeAdd をした」と依頼
+            gm.RPC_RequestEffectLifeAdd(runner.LocalPlayer, amount);
+        }
+        else if (player.lifeManager != null)
+        {
+            // オフライン／何かがおかしい時の保険としてローカル処理
             for (int i = 0; i < amount; i++)
                 player.lifeManager.AddLife();
         }

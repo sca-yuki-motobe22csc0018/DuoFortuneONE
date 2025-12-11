@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using Fusion;
+using System.Collections.Generic;
 
 public class PlayerManager : NetworkBehaviour
 {
@@ -12,6 +13,10 @@ public class PlayerManager : NetworkBehaviour
     [Header("マナUI")]
     public TMP_Text energyText;          // 自分のマナ
     public TMP_Text opponentEnergyText;  // 相手のマナ
+
+    [Header("ライフUI")]
+    public TMP_Text myLifeCountText;         // 自分のライフ枚数
+    public TMP_Text opponentLifeCountText;   // 相手のライフ枚数
 
     [Header("手札UI")]
     public TMP_Text myHandCountText;         // 自分の手札枚数表示
@@ -30,6 +35,15 @@ public class PlayerManager : NetworkBehaviour
 
     [Header("相手手札表示用")]
     public HandManager opponentHandViewManager;   // ← 追加
+
+    [Header("相手ライフ表示用")]
+    public Transform opponentLifeRoot;            // 相手ライフCardBackを並べる親
+    public GameObject opponentLifeBackPrefab;     // ライフ用の裏面（CardBack）
+    public float opponentLifeSpacing = 0.75f;     // 並べる間隔
+
+    // 相手ライフ用の裏面カードを管理
+    private readonly List<GameObject> opponentLifeBackCards = new List<GameObject>();
+
 
     // ================================
     //  Spawn（Prefabが参加した時） 
@@ -57,6 +71,14 @@ public class PlayerManager : NetworkBehaviour
         // 手札枚数UI 初期更新
         if (Object.HasInputAuthority)
             UpdateHandCountUI();
+
+        // 手札枚数UI 初期更新
+        if (Object.HasInputAuthority)
+        {
+            UpdateHandCountUI();
+            UpdateLifeUI();   // ★ 追加
+        }
+
     }
 
     // ================================
@@ -150,6 +172,66 @@ public class PlayerManager : NetworkBehaviour
         // 相手の裏面カードを更新
         UpdateOpponentBackCards(oppCount);
     }
+
+    // ライフ枚数UIの更新＆相手ライフの裏面カードを並べる
+    public void UpdateLifeUI()
+    {
+        // 自分のライフ枚数
+        int myLife = (lifeManager != null) ? lifeManager.LifeCount : 0;
+        if (myLifeCountText != null)
+            myLifeCountText.text = myLife.ToString();
+
+        // 相手のライフ枚数
+        int oppLife = 0;
+        if (opponent != null && opponent.lifeManager != null)
+            oppLife = opponent.lifeManager.LifeCount;
+
+        if (opponentLifeCountText != null)
+            opponentLifeCountText.text = oppLife.ToString();
+
+        // 相手ライフの裏面カードを更新
+        UpdateOpponentLifeBacks(oppLife);
+    }
+
+    // 相手のライフ裏面カードを枚数に合わせて増減＆整列
+    private void UpdateOpponentLifeBacks(int count)
+    {
+        if (opponentLifeRoot == null || opponentLifeBackPrefab == null)
+            return;
+
+        // 足りないぶん追加
+        int current = opponentLifeBackCards.Count;
+        for (int i = current; i < count; i++)
+        {
+            var obj = GameObject.Instantiate(opponentLifeBackPrefab, opponentLifeRoot);
+            obj.transform.localScale = Vector3.one;
+            opponentLifeBackCards.Add(obj);
+        }
+
+        // 余分なぶん削除
+        for (int i = opponentLifeBackCards.Count - 1; i >= count; i--)
+        {
+            var obj = opponentLifeBackCards[i];
+            opponentLifeBackCards.RemoveAt(i);
+            if (obj != null)
+                GameObject.Destroy(obj);
+        }
+
+        // 中央揃えで横並び配置
+        int n = opponentLifeBackCards.Count;
+        if (n == 0) return;
+
+        float spacing = opponentLifeSpacing;
+        float totalWidth = spacing * (n - 1);
+        float startX = -totalWidth / 2f;
+
+        for (int i = 0; i < n; i++)
+        {
+            var tr = opponentLifeBackCards[i].transform;
+            tr.localPosition = new Vector3(startX + spacing * i, 0f, 0f);
+        }
+    }
+
 
     // 相手の裏面カードを枚数に合わせて増減
     // 相手の裏面カードを枚数に合わせて増減

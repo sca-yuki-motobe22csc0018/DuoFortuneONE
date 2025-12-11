@@ -310,9 +310,142 @@ public class GameManager : NetworkBehaviour
             if (pm != null && pm.Object.HasInputAuthority)
             {
                 pm.UpdateHandCountUI();
+                pm.UpdateLifeUI();   // ★ 追加
             }
         }
     }
+
+    // ============================================================
+    //  ライフ破壊の同期（Host → 他クライアント）
+    // ============================================================
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SyncRemoveLife(int playerIndex)
+    {
+        // Host はすでに RemoveLife 済みなので、ここでは何もしない
+        if (Object.HasStateAuthority)
+            return;
+
+        if (players == null || playerIndex < 0 || playerIndex >= players.Count)
+            return;
+
+        var pm = players[playerIndex];
+        if (pm != null && pm.lifeManager != null)
+        {
+            pm.lifeManager.RemoveLife();
+        }
+    }
+
+    // ============================
+    // ライフ追加（Host → 全員）
+    // ============================
+
+    // Host だけが呼ぶ: 指定プレイヤーに amount 枚ライフを追加
+    public void AddLifeToPlayer(PlayerManager targetPlayer, int amount)
+    {
+        if (!Object.HasStateAuthority) return;    // Host 以外は何もしない
+        if (deckManager == null) return;
+        if (targetPlayer == null) return;
+        if (amount <= 0) return;
+
+        int playerIndex = players.IndexOf(targetPlayer);
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning("[GameManager.AddLifeToPlayer] targetPlayer が players に見つかりません。");
+            return;
+        }
+
+        // Host だけが山札からライフ用のカードIDを引く
+        int[] lifeIds = deckManager.DrawCardIDs(amount);
+        if (lifeIds == null || lifeIds.Length == 0)
+        {
+            Debug.LogWarning("[GameManager.AddLifeToPlayer] 山札が空のためライフを追加できません。");
+            return;
+        }
+
+        // 全クライアントに「このIDのカードをライフに追加しろ」と通知
+        RPC_SyncAddLife(playerIndex, lifeIds);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SyncAddLife(int playerIndex, int[] lifeIds)
+    {
+        if (deckManager == null) return;
+        if (players == null) return;
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+        if (lifeIds == null || lifeIds.Length == 0) return;
+
+        var pm = players[playerIndex];
+        if (pm == null || pm.lifeManager == null) return;
+
+        // 各クライアントで同じIDのカードデータを復元してライフに追加
+        foreach (var id in lifeIds)
+        {
+            var data = deckManager.GetCardDataById(id);
+            if (data != null)
+            {
+                pm.lifeManager.AddLife(data);
+            }
+        }
+
+        // 自分視点のライフUIを更新
+        foreach (var p in players)
+        {
+            if (p != null && p.Object != null && p.Object.HasInputAuthority)
+            {
+                p.UpdateLifeUI();
+            }
+        }
+    }
+
+    // ============================
+    // 効果 LifeAdd 用リクエスト（Client → Host）
+    // ============================
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectLifeAdd(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0)
+        {
+            Debug.LogWarning($"RPC_RequestEffectLifeAdd: requester {requester} に対応する PlayerManager が見つかりません。");
+            return;
+        }
+
+        // Host 側で AddLifeToPlayer を実行
+        AddLifeToPlayer(players[playerIndex], amount);
+    }
+
+
+
+    // ============================================================
+    //  ライフUIを「そのクライアントのローカル視点」で更新
+    // ============================================================
+    public void UpdateAllLifeUIForLocal()
+    {
+        if (players == null) return;
+
+        foreach (var pm in players)
+        {
+            if (pm != null && pm.Object != null && pm.Object.HasInputAuthority)
+            {
+                // このクライアントの「自分視点」UIを更新
+                pm.UpdateLifeUI();
+            }
+        }
+    }
+
 
     // プレイヤーからのドロー要求（クライアント → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -568,6 +701,7 @@ public class GameManager : NetworkBehaviour
             }
         }
     }
+
 
     // ============================================================
     //  Fusion 推奨：RenderでNetworkedの変更監視
