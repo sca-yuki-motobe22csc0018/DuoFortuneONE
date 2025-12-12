@@ -292,6 +292,7 @@ MonoBehaviour:
   cardList: []
   player: {fileID: 0}
   discardManager: {fileID: 0}
+  skipAutoDiscard: 0
   targetArea: {fileID: 0}
   targetRadius: 1
 --- !u!1 &1900089338463359698
@@ -1100,7 +1101,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -235, y: -215}
+  m_AnchoredPosition: {x: -235, y: -200}
   m_SizeDelta: {x: 475, y: 210}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &8377794092726264293
@@ -1158,8 +1159,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 19
-  m_fontSizeBase: 19
+  m_fontSize: 20
+  m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -1170,7 +1171,7 @@ MonoBehaviour:
   m_textAlignment: 65535
   m_characterSpacing: 0
   m_wordSpacing: 0
-  m_lineSpacing: 75
+  m_lineSpacing: 35
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0

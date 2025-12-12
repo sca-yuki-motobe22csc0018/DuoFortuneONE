@@ -79,10 +79,28 @@ public class DiscardManager : MonoBehaviour
         isOpen = !isOpen;
         if (fullViewPanel == null || gridParent == null || cardDisplayPrefab == null) return;
 
-        fullViewPanel.SetActive(isOpen);
-        if (isOpen) BuildFullView();
-        else ClearFullView();
+        if (isOpen)
+        {
+            // ★ 0枚なら「捨て札はありません」と軽く出してすぐ閉じる
+            if (discardDataList.Count == 0)
+            {
+                ShowDiscardWarning("捨て札はありません。", 1f);
+                isOpen = false;
+                fullViewPanel.SetActive(false);
+                ClearFullView();
+                return;
+            }
+
+            fullViewPanel.SetActive(true);
+            BuildFullView();
+        }
+        else
+        {
+            fullViewPanel.SetActive(false);
+            ClearFullView();
+        }
     }
+
 
     private void BuildFullView()
     {
@@ -293,6 +311,13 @@ public class DiscardManager : MonoBehaviour
             return;
         }
 
+        if (recoverTargetPlayer == null || recoverTargetPlayer.handManager == null)
+        {
+            Debug.LogError("OnConfirmOK: recoverTargetPlayer または handManager が null です。");
+            EndRecoverMode();     // とりあえず回収モードだけ終了させる
+            return;
+        }
+
         foreach (var data in selectedCards)
         {
             var go = Instantiate(cardPlayablePrefab, recoverTargetPlayer.handManager.transform);
@@ -301,9 +326,10 @@ public class DiscardManager : MonoBehaviour
             cg.player = recoverTargetPlayer;
             recoverTargetPlayer.handManager.AddCard(go);
         }
-        isRecoverComplete = true;  // ★OKが押されたので完了扱い
+        isRecoverComplete = true;
         EndRecoverMode();
     }
+
 
     // Cancel
     public void OnConfirmCancel()

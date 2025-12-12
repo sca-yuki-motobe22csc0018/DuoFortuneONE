@@ -6,8 +6,7 @@ using System.Collections.Generic;
 public class PlayerManager : NetworkBehaviour
 {
     [Header("Mana Settings")]
-    public int maxMana = 2;
-
+    [Networked] public int maxMana { get; set; }  // ★ Networked に変更
     [Networked] public int currentMana { get; set; }
 
     [Header("マナUI")]
@@ -59,26 +58,26 @@ public class PlayerManager : NetworkBehaviour
         // そのあとで GameManager に登録
         gameManager.RegisterPlayer(this);
 
+        // ★ Host（StateAuthority）だけ初期マナ設定を行う
+        if (Object.HasStateAuthority)
+        {
+            maxMana = 2;
+            currentMana = 0;
+        }
+
         // 自分のCanvasだけ ON
         if (energyText != null)
             energyText.transform.root.gameObject.SetActive(Object.HasInputAuthority);
 
-        // マナ初期値 0/2
-        currentMana = 0;
         UpdateEnergyUI();
         UpdateOpponentUI();
 
-        // 手札枚数UI 初期更新
-        if (Object.HasInputAuthority)
-            UpdateHandCountUI();
-
-        // 手札枚数UI 初期更新
+        // 手札＆ライフUI 初期更新（自分視点）
         if (Object.HasInputAuthority)
         {
             UpdateHandCountUI();
-            UpdateLifeUI();   // ★ 追加
+            UpdateLifeUI();
         }
-
     }
 
     // ================================
@@ -141,6 +140,7 @@ public class PlayerManager : NetworkBehaviour
         if (opponent != null && opponentEnergyText != null)
             opponentEnergyText.text = $"{opponent.currentMana}/{opponent.maxMana}";
     }
+
     // HandManager から呼ばれる「手札が変わったよ」通知
     public void NotifyHandChangedForBothSides()
     {
@@ -232,8 +232,6 @@ public class PlayerManager : NetworkBehaviour
         }
     }
 
-
-    // 相手の裏面カードを枚数に合わせて増減
     // 相手の裏面カードを枚数に合わせて増減
     private void UpdateOpponentBackCards(int count)
     {
@@ -276,4 +274,18 @@ public class PlayerManager : NetworkBehaviour
         opponent = pm;
         UpdateOpponentUI();
     }
+
+    // ================================
+    //  Networked 値に合わせて UI を補正
+    // ================================
+    public override void Render()
+    {
+        base.Render();
+
+        // Networked な currentMana / maxMana / opponent の値に基づいて
+        // 毎フレーム UI を最新状態に補正する
+        UpdateEnergyUI();
+        UpdateOpponentUI();
+    }
+
 }

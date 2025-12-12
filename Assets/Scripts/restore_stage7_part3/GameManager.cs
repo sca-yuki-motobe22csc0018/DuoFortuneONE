@@ -212,8 +212,6 @@ public class GameManager : NetworkBehaviour
             turnChoicePanel.SetActive(false);
     }
 
-
-
     // ★ プレイヤー index を受け取って、そのプレイヤーにチャージ処理を適用する共通関数
     private void ApplyChargeInternal(int playerIndex)
     {
@@ -427,7 +425,138 @@ public class GameManager : NetworkBehaviour
         AddLifeToPlayer(players[playerIndex], amount);
     }
 
+    // ============================
+    // マナ関連 共通UI更新（Host で値を変えた後に呼ぶ）
+    // ============================
+    private void UpdateAllManaUI()
+    {
+        if (players == null) return;
 
+        foreach (var pm in players)
+        {
+            if (pm != null)
+            {
+                pm.UpdateEnergyUI();
+                pm.UpdateOpponentUI();
+            }
+        }
+    }
+
+    // ============================
+    // マナ効果（Host中心）
+    // ============================
+
+    // Host 側のみ: 特定プレイヤーの最大マナを増やす（カード効果用）
+    public void EffectManaBoost(PlayerManager targetPlayer, int amount)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (targetPlayer == null) return;
+        if (amount <= 0) return;
+
+        targetPlayer.IncreaseMaxManaOnly(amount);
+
+        // Networked値が変わったので、全員のUIを補正
+        UpdateAllManaUI();
+    }
+
+    // Host 側のみ: 特定プレイヤーのマナ回復。isAll=true の場合は全回復。
+    public void EffectManaRecover(PlayerManager targetPlayer, int amount, bool isAll)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (targetPlayer == null) return;
+        if (!isAll && amount <= 0) return;
+
+        if (isAll)
+        {
+            targetPlayer.ResetMana();
+        }
+        else
+        {
+            targetPlayer.GainMana(amount);
+        }
+
+        UpdateAllManaUI();
+    }
+
+    // 効果 ManaBoost 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaBoost(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        EffectManaBoost(players[playerIndex], amount);
+    }
+
+    // 効果 ManaRecover 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaRecover(PlayerRef requester, int amount, bool isAll)
+    {
+        if (!isAll && amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        EffectManaRecover(players[playerIndex], amount, isAll);
+    }
+
+    // ★★★ 追加：カードのコスト支払い用（Client → Host） ★★★
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestSpendMana(PlayerRef requester, int cost)
+    {
+        if (cost <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        var target = players[playerIndex];
+        if (target == null) return;
+
+        if (target.currentMana < cost)
+        {
+            Debug.Log($"[Host] RPC_RequestSpendMana: マナ不足 cost={cost}, current={target.currentMana}");
+            return;
+        }
+
+        target.currentMana -= cost;
+
+        UpdateAllManaUI();
+    }
 
     // ============================================================
     //  ライフUIを「そのクライアントのローカル視点」で更新
@@ -445,7 +574,6 @@ public class GameManager : NetworkBehaviour
             }
         }
     }
-
 
     // プレイヤーからのドロー要求（クライアント → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -629,7 +757,6 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-
     // ============================================================
     //  ターンを進める（Hostだけ）
     // ============================================================
@@ -691,17 +818,9 @@ public class GameManager : NetworkBehaviour
         // ★ 実際のマナ計算（Max+1 / Reset）を適用
         ApplyChargeInternal(playerIndex);
 
-        // ★ 各クライアントで、自分のUIから見た「相手のマナ表示」を更新
-        foreach (var pm in players)
-        {
-            if (pm != null)
-            {
-                pm.UpdateEnergyUI();      // 念のため自分側も更新
-                pm.UpdateOpponentUI();    // 相手側表示も更新
-            }
-        }
+        // ★ 各クライアントでマナUI更新
+        UpdateAllManaUI();
     }
-
 
     // ============================================================
     //  Fusion 推奨：RenderでNetworkedの変更監視

@@ -56,10 +56,9 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectValue6;
     }
 
-
-
     [HideInInspector] public PlayerManager player;
     public DiscardManager discardManager;
+    public bool skipAutoDiscard = false;
 
     [Header("Target Area")]
     public Transform targetArea;
@@ -144,7 +143,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
 
         // --- 任意でタイプ文字も設定できるように ---
-        // もしUI上にTMP_Textを後で追加する場合に備えて
         var tmp = GetComponentInChildren<TMP_Text>(true);
         if (tmp != null && tmp.gameObject.name.Contains("TypeText"))
         {
@@ -162,7 +160,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         // --- オブジェクト名更新 ---
         this.name = data.name;
     }
-
 
     public CardData GetCardData()
     {
@@ -395,10 +392,33 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     public bool TryPlayCard()
     {
         if (player == null || myData == null) return false;
-        if (!player.SpendMana(myData.cost)) return false;
-        player.UpdateEnergyUI();
 
-        // ★ 修正: 使用確定時、GameObjectは非アクティブ化せず"見た目だけ"即座に消す
+        // ★ ローカルで「マナが足りているか」だけチェック（Networked のスナップショット）
+        if (player.currentMana < myData.cost)
+        {
+            Debug.Log("マナが足りません！（ローカルチェック）");
+            return false;
+        }
+
+        // ★ Host に正式な支払いを依頼（Host自身も含む）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestSpendMana(runner.LocalPlayer, myData.cost);
+        }
+        else
+        {
+            // ネットワーク周りが見つからない場合の保険としてローカルで支払い
+            player.SpendMana(myData.cost);
+        }
+
+        // ここでローカルの UI を直接いじらなくても、
+        // PlayerManager.Render() + Networked 同期で最終的には正しい値になる。
+        // （Hostの場合はそのまま即反映されていく）
+
+        // ★ 使用確定時、GameObjectは非アクティブ化せず"見た目だけ"即座に消す
         HideVisualsForUsing();
 
         StartCoroutine(EffectSequenceCoroutine()); // ★ コルーチン開始
@@ -473,7 +493,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         if (discardManager != null)
         {
-            if (myData != null && myData.type != "D" && myData.type != "BLOCK")
+            if (!skipAutoDiscard && myData != null && myData.type != "BLOCK")
             {
                 discardManager.AddToDiscard(myData);
             }
@@ -520,8 +540,15 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 break;
 
             case "ManaRecover":
-                if (int.TryParse(value, out int recover))
+                // ★ "ALL" の場合は特別扱い（全回復）
+                if (value == "ALL")
+                {
+                    yield return StartCoroutine(DoManaRecoverRoutine(-1));
+                }
+                else if (int.TryParse(value, out int recover))
+                {
                     yield return StartCoroutine(DoManaRecoverRoutine(recover));
+                }
                 break;
 
             case "LifeAdd":
@@ -547,7 +574,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
-    // ★★ ここをネット対応版に変更 ★★
+    // ★★ ここをネット対応版に変更済み ★★
     void DoDraw(int count)
     {
         if (count <= 0) return;
@@ -567,17 +594,63 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     void DoManaBoost(int amount)
     {
-        if (player != null)
+        if (player == null || amount <= 0)
+            return;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
         {
+            // ★ Host に「最大マナを増やしたい」と依頼
+            gm.RPC_RequestEffectManaBoost(runner.LocalPlayer, amount);
+        }
+        else
+        {
+            // オフラインや何かがおかしい時の保険としてローカル処理
             player.IncreaseMaxManaOnly(amount);
             player.UpdateEnergyUI();
+            player.UpdateOpponentUI();
         }
     }
 
     void DoManaRecover(int amount)
     {
-        if (player != null)
-            player.currentMana = Mathf.Min(player.currentMana + amount, player.maxMana);
+        if (player == null)
+            return;
+
+        bool isAll = false;
+        int recoverAmount = amount;
+
+        // ★ amount < 0 は「ALL（全回復）」扱い
+        if (amount < 0)
+        {
+            isAll = true;
+            recoverAmount = 0;
+        }
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
+        {
+            // ★ Host に「マナ回復したい」と依頼（ALL の場合は isAll=true）
+            gm.RPC_RequestEffectManaRecover(runner.LocalPlayer, recoverAmount, isAll);
+        }
+        else
+        {
+            // オフライン／保険としてローカル処理
+            if (isAll)
+            {
+                player.currentMana = player.maxMana;
+            }
+            else if (recoverAmount > 0)
+            {
+                player.currentMana = Mathf.Min(player.currentMana + recoverAmount, player.maxMana);
+            }
+            player.UpdateEnergyUI();
+            player.UpdateOpponentUI();
+        }
     }
 
     void DoLifeAdd(int amount)
@@ -623,7 +696,16 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     private IEnumerator DoManaRecoverRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"マナを {x} 回復します。");
+        if (x < 0)
+        {
+            // ALL の場合
+            yield return EffectProcessWindow.Instance.ShowProcess("マナを全回復します。");
+        }
+        else
+        {
+            yield return EffectProcessWindow.Instance.ShowProcess($"マナを {x} 回復します。");
+        }
+
         DoManaRecover(x);
         yield break;
     }
