@@ -755,6 +755,13 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         PlayerManager defender =
             (gm.players[0] == player) ? gm.players[1] : gm.players[0];
 
-        yield return BattleManager.Instance.HandleAttack(attacker, defender, myData);
+        var runner = FindAnyObjectByType<NetworkRunner>();
+        if (runner == null) yield break;
+
+        // Host に「攻撃開始」を依頼（カードIDだけ送る）
+        gm.RPC_RequestAttack(runner.LocalPlayer, cardID);
+
+        yield break;
     }
+
 }

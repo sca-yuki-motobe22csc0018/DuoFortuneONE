@@ -34,23 +34,14 @@ public class DefenceWindow : MonoBehaviour
             return;
         }
         Instance = this;
+        gameObject.SetActive(false);
 
         if (useButton != null) useButton.onClick.AddListener(OnUseClicked);
         if (okButton != null) okButton.onClick.AddListener(OnOkClicked);
-
-        // ★ CanvasGroup を用意して、ゲーム開始時は「見えない＆クリックできない」状態にしておく
-        var cg = GetComponent<CanvasGroup>();
-        if (cg == null)
-        {
-            cg = gameObject.AddComponent<CanvasGroup>();
-        }
-        cg.alpha = 0f;
-        cg.interactable = false;
-        cg.blocksRaycasts = false;
     }
 
     /// <summary>
-    /// ライフ破壊時のDEFENCE発動確認ウィンドウ
+    /// ライフ破壊時のDEFENCE発動確認ウインドウ
     /// </summary>
     public IEnumerator ShowDefenceChoice(PlayerManager player, CardGenerator.CardData cardData)
     {
@@ -61,15 +52,7 @@ public class DefenceWindow : MonoBehaviour
         isWaiting = true;
         useDefence = false;
 
-        // ★ 毎回、確実に「見える状態」に戻す
-        var cg = GetComponent<CanvasGroup>();
-        if (cg != null)
-        {
-            cg.alpha = 1f;
-            cg.interactable = true;
-            cg.blocksRaycasts = true;
-        }
-
+        gameObject.SetActive(true);
         if (titleText != null) titleText.text = "ライフが破壊されました！";
 
         // 既に表示中のカードを破棄
@@ -79,6 +62,7 @@ public class DefenceWindow : MonoBehaviour
         if (uiCardPrefab != null && cardParent != null)
         {
             currentCardObj = Instantiate(uiCardPrefab, cardParent);
+            // ★ サイズ調整（Inspectorで設定した倍率を反映）
             currentCardObj.transform.localScale = cardScale;
 
             // CardUI に内容を反映（DiscardManagerは不要なのでnull、ゾーンはどちらでもOK）
@@ -114,25 +98,11 @@ public class DefenceWindow : MonoBehaviour
             yield return StartCoroutine(UseDefenceCard());
 
             // DEFENCE使用 → 捨て札へ送る
-            GameManager gm = GameManager.Instance ?? GameObject.FindObjectOfType<GameManager>();
-            DiscardManager discard = null;
-            if (gm != null && gm.discardManager != null)
-            {
-                discard = gm.discardManager;
-            }
-            else
-            {
-                discard = GameObject.FindObjectOfType<DiscardManager>();
-            }
-
+            var discard = GameManager.Instance.discardManager;
             if (discard != null)
             {
                 discard.AddToDiscard(cardData);
                 Debug.Log($"DEFENCEカード {cardData.name} を捨て札ゾーンへ送信");
-            }
-            else
-            {
-                Debug.LogWarning("DefenceWindow: DiscardManager が見つからないため、DEFENCEカードを捨て札に送れませんでした。");
             }
         }
         else
@@ -147,20 +117,19 @@ public class DefenceWindow : MonoBehaviour
             }
         }
 
-        // 終了処理（念のため、ここでも非表示化しておく）
+        // 終了処理
         if (currentCardObj != null)
             Destroy(currentCardObj);
 
-        HideWindowVisual();
+        gameObject.SetActive(false);
     }
 
     private void OnUseClicked()
     {
-        // 「使用する」を選択
         useDefence = true;
         isWaiting = false;
 
-        // ★ 押した瞬間にウインドウを見えなくする（GameObject は非アクティブにしない）
+        // ★ 修正: gameObjectを非アクティブにせず、CanvasGroupで透明にして閉じる
         HideWindowVisual();
     }
 
@@ -171,19 +140,15 @@ public class DefenceWindow : MonoBehaviour
         {
             cg = gameObject.AddComponent<CanvasGroup>();
         }
-        cg.alpha = 0f;        // 完全に透明
+        cg.alpha = 0;        // 完全に透明
         cg.interactable = false;
         cg.blocksRaycasts = false;
     }
 
     private void OnOkClicked()
     {
-        // 「使用しない」
         useDefence = false;
         isWaiting = false;
-
-        // 見た目も閉じる
-        HideWindowVisual();
     }
 
     /// <summary>
@@ -196,13 +161,30 @@ public class DefenceWindow : MonoBehaviour
         GameObject tempCard = new GameObject("TempDefenceCard");
         var cg = tempCard.AddComponent<CardGenerator>();
         cg.player = currentPlayer;
-        cg.skipAutoDiscard = true;   // DEFENCEトリガー用の一時カードなので、自動で捨て札に送らない
         cg.ApplyCardData(currentCardData);
 
         yield return cg.StartCoroutine("EffectSequenceCoroutine");
 
         Destroy(tempCard);
 
-        // 効果処理後もウインドウは既に非表示なので特に何もしない
+        // ★ 追加: 処理が終わったらUIを復元
+        RestoreWindowVisual();
     }
+
+    private void RestoreWindowVisual()
+    {
+        CanvasGroup cg = GetComponent<CanvasGroup>();
+        if (cg != null)
+        {
+            cg.alpha = 1f;
+            cg.interactable = true;
+            cg.blocksRaycasts = true;
+        }
+    }
+
+    public bool GetUseDefenceResult()
+    {
+        return useDefence;
+    }
+
 }

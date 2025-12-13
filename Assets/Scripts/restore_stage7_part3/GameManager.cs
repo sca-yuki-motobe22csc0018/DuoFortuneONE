@@ -227,6 +227,8 @@ public class GameManager : NetworkBehaviour
         player.ResetMana();
     }
 
+
+
     public void OnEndTurn()
     {
         var player = players[currentPlayerIndex];
@@ -425,138 +427,7 @@ public class GameManager : NetworkBehaviour
         AddLifeToPlayer(players[playerIndex], amount);
     }
 
-    // ============================
-    // マナ関連 共通UI更新（Host で値を変えた後に呼ぶ）
-    // ============================
-    private void UpdateAllManaUI()
-    {
-        if (players == null) return;
 
-        foreach (var pm in players)
-        {
-            if (pm != null)
-            {
-                pm.UpdateEnergyUI();
-                pm.UpdateOpponentUI();
-            }
-        }
-    }
-
-    // ============================
-    // マナ効果（Host中心）
-    // ============================
-
-    // Host 側のみ: 特定プレイヤーの最大マナを増やす（カード効果用）
-    public void EffectManaBoost(PlayerManager targetPlayer, int amount)
-    {
-        if (!Object.HasStateAuthority) return;
-        if (targetPlayer == null) return;
-        if (amount <= 0) return;
-
-        targetPlayer.IncreaseMaxManaOnly(amount);
-
-        // Networked値が変わったので、全員のUIを補正
-        UpdateAllManaUI();
-    }
-
-    // Host 側のみ: 特定プレイヤーのマナ回復。isAll=true の場合は全回復。
-    public void EffectManaRecover(PlayerManager targetPlayer, int amount, bool isAll)
-    {
-        if (!Object.HasStateAuthority) return;
-        if (targetPlayer == null) return;
-        if (!isAll && amount <= 0) return;
-
-        if (isAll)
-        {
-            targetPlayer.ResetMana();
-        }
-        else
-        {
-            targetPlayer.GainMana(amount);
-        }
-
-        UpdateAllManaUI();
-    }
-
-    // 効果 ManaBoost 用リクエスト（Client → Host）
-    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestEffectManaBoost(PlayerRef requester, int amount)
-    {
-        if (amount <= 0) return;
-        if (players == null || players.Count == 0) return;
-
-        int playerIndex = -1;
-        for (int i = 0; i < players.Count; i++)
-        {
-            var pm = players[i];
-            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
-            {
-                playerIndex = i;
-                break;
-            }
-        }
-
-        if (playerIndex < 0) return;
-
-        EffectManaBoost(players[playerIndex], amount);
-    }
-
-    // 効果 ManaRecover 用リクエスト（Client → Host）
-    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestEffectManaRecover(PlayerRef requester, int amount, bool isAll)
-    {
-        if (!isAll && amount <= 0) return;
-        if (players == null || players.Count == 0) return;
-
-        int playerIndex = -1;
-        for (int i = 0; i < players.Count; i++)
-        {
-            var pm = players[i];
-            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
-            {
-                playerIndex = i;
-                break;
-            }
-        }
-
-        if (playerIndex < 0) return;
-
-        EffectManaRecover(players[playerIndex], amount, isAll);
-    }
-
-    // ★★★ 追加：カードのコスト支払い用（Client → Host） ★★★
-    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestSpendMana(PlayerRef requester, int cost)
-    {
-        if (cost <= 0) return;
-        if (players == null || players.Count == 0) return;
-
-        int playerIndex = -1;
-        for (int i = 0; i < players.Count; i++)
-        {
-            var pm = players[i];
-            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
-            {
-                playerIndex = i;
-                break;
-            }
-        }
-
-        if (playerIndex < 0) return;
-
-        var target = players[playerIndex];
-        if (target == null) return;
-
-        if (target.currentMana < cost)
-        {
-            Debug.Log($"[Host] RPC_RequestSpendMana: マナ不足 cost={cost}, current={target.currentMana}");
-            return;
-        }
-
-        target.currentMana -= cost;
-
-        UpdateAllManaUI();
-    }
 
     // ============================================================
     //  ライフUIを「そのクライアントのローカル視点」で更新
@@ -574,6 +445,7 @@ public class GameManager : NetworkBehaviour
             }
         }
     }
+
 
     // プレイヤーからのドロー要求（クライアント → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -757,6 +629,7 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+
     // ============================================================
     //  ターンを進める（Hostだけ）
     // ============================================================
@@ -818,9 +691,288 @@ public class GameManager : NetworkBehaviour
         // ★ 実際のマナ計算（Max+1 / Reset）を適用
         ApplyChargeInternal(playerIndex);
 
-        // ★ 各クライアントでマナUI更新
+        // ★ 各クライアントで、自分のUIから見た「相手のマナ表示」を更新
+        foreach (var pm in players)
+        {
+            if (pm != null)
+            {
+                pm.UpdateEnergyUI();      // 念のため自分側も更新
+                pm.UpdateOpponentUI();    // 相手側表示も更新
+            }
+        }
+    }
+
+
+
+    // ============================================================
+    //  Attack / Block / Defence 同期（Host権限で進行）
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestAttack(PlayerRef attackerRef, int attackCardId)
+    {
+        if (battleManager == null || deckManager == null) return;
+        if (players == null || players.Count < 2) return;
+
+        int attackerIndex = FindPlayerIndexByRef(attackerRef);
+        if (attackerIndex < 0) return;
+
+        // ターン中のプレイヤー以外は拒否
+        if (attackerIndex != currentPlayerIndex) return;
+
+        int defenderIndex = (attackerIndex == 0) ? 1 : 0;
+
+        PlayerManager attacker = players[attackerIndex];
+        PlayerManager defender = players[defenderIndex];
+
+        var attackData = deckManager.GetCardDataById(attackCardId);
+        if (attackData == null) return;
+
+        if (battleManager != null)
+        {
+            battleManager.EnqueueAttack(attacker, defender, attackData);
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_OpenBlockChoice(int defenderIndex)
+    {
+        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) return;
+
+        // defender本人の端末だけ開く
+        if (players[defenderIndex].Object != null && players[defenderIndex].Object.HasInputAuthority)
+        {
+            StartCoroutine(Co_BlockChoice(defenderIndex));
+        }
+        else
+        {
+            // それ以外の端末は念のため閉じる
+            if (BlockWindow.Instance != null) BlockWindow.Instance.gameObject.SetActive(false);
+        }
+    }
+
+    private IEnumerator Co_BlockChoice(int defenderIndex)
+    {
+        if (BlockWindow.Instance == null) yield break;
+        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) yield break;
+
+        var defender = players[defenderIndex];
+
+        yield return StartCoroutine(BlockWindow.Instance.ShowBlockChoice(defender));
+
+        int chosenId = -1;
+        var data = BlockWindow.Instance.GetSelectedBlockData();
+        if (data != null) chosenId = data.id;
+
+        var r = runner;
+        if (r == null)
+            r = FindAnyObjectByType<NetworkRunner>();
+
+        if (r != null)
+        {
+            RPC_SubmitBlockChoice(r.LocalPlayer, chosenId);
+        }
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_SubmitBlockChoice(PlayerRef defenderRef, int chosenCardIdOrMinusOne)
+    {
+        if (battleManager == null) return;
+        battleManager.ReceiveBlockChoice(defenderRef, chosenCardIdOrMinusOne);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_OpenDefenceChoice(int defenderIndex, int destroyedLifeCardId)
+    {
+        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) return;
+
+        if (players[defenderIndex].Object != null && players[defenderIndex].Object.HasInputAuthority)
+        {
+            StartCoroutine(Co_DefenceChoice(defenderIndex, destroyedLifeCardId));
+        }
+        else
+        {
+            if (DefenceWindow.Instance != null) DefenceWindow.Instance.gameObject.SetActive(false);
+        }
+    }
+
+    private IEnumerator Co_DefenceChoice(int defenderIndex, int destroyedLifeCardId)
+    {
+        if (DefenceWindow.Instance == null) yield break;
+        if (deckManager == null) yield break;
+        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) yield break;
+
+        var defender = players[defenderIndex];
+        var data = deckManager.GetCardDataById(destroyedLifeCardId);
+        if (data == null) yield break;
+
+        yield return StartCoroutine(DefenceWindow.Instance.ShowDefenceChoice(defender, data));
+
+        bool used = DefenceWindow.Instance.GetUseDefenceResult();
+
+        var r = runner;
+        if (r == null)
+            r = FindAnyObjectByType<NetworkRunner>();
+
+        if (r != null)
+        {
+            RPC_NotifyDefenceChoiceDone(r.LocalPlayer, used);
+        }
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_NotifyDefenceChoiceDone(PlayerRef defenderRef, bool usedDefence)
+    {
+        if (battleManager == null) return;
+        battleManager.ReceiveDefenceChoiceDone(defenderRef, usedDefence);
+    }
+
+    private int FindPlayerIndexByRef(PlayerRef r)
+    {
+        if (players == null) return -1;
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == r)
+                return i;
+        }
+        return -1;
+    }
+
+    // ============================
+    // マナ関連 共通UI更新（Host で値を変えた後に呼ぶ）
+    // ============================
+    private void UpdateAllManaUI()
+    {
+        if (players == null) return;
+
+        foreach (var pm in players)
+        {
+            if (pm != null)
+            {
+                pm.UpdateEnergyUI();
+                pm.UpdateOpponentUI();
+            }
+        }
+    }
+
+    // ============================
+    // マナ効果（Host中心）
+    // ============================
+
+    // Host 側のみ: 特定プレイヤーの最大マナを増やす（カード効果用）
+    public void EffectManaBoost(PlayerManager targetPlayer, int amount)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (targetPlayer == null) return;
+        if (amount <= 0) return;
+
+        targetPlayer.IncreaseMaxManaOnly(amount);
+
+        // Networked値が変わったので、全員のUIを補正
         UpdateAllManaUI();
     }
+
+    // Host 側のみ: 特定プレイヤーのマナ回復。isAll=true の場合は全回復。
+    public void EffectManaRecover(PlayerManager targetPlayer, int amount, bool isAll)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (targetPlayer == null) return;
+        if (!isAll && amount <= 0) return;
+
+        if (isAll)
+        {
+            targetPlayer.ResetMana();
+        }
+        else
+        {
+            targetPlayer.GainMana(amount);
+        }
+
+        UpdateAllManaUI();
+    }
+
+    // 効果 ManaBoost 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaBoost(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        EffectManaBoost(players[playerIndex], amount);
+    }
+
+    // 効果 ManaRecover 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaRecover(PlayerRef requester, int amount, bool isAll)
+    {
+        if (!isAll && amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        EffectManaRecover(players[playerIndex], amount, isAll);
+    }
+
+    // ★★★ 追加：カードのコスト支払い用（Client → Host） ★★★
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestSpendMana(PlayerRef requester, int cost)
+    {
+        if (cost <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        var target = players[playerIndex];
+        if (target == null) return;
+
+        if (target.currentMana < cost)
+        {
+            Debug.Log($"[Host] RPC_RequestSpendMana: マナ不足 cost={cost}, current={target.currentMana}");
+            return;
+        }
+
+        target.currentMana -= cost;
+
+        UpdateAllManaUI();
+    }
+
 
     // ============================================================
     //  Fusion 推奨：RenderでNetworkedの変更監視
