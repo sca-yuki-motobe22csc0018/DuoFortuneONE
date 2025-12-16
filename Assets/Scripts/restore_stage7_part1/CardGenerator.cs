@@ -515,6 +515,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         switch (type)
         {
+            case "Attack":
             case "Draw":
             case "ManaBoost":
             case "ManaRecover":
