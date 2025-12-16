@@ -15,6 +15,8 @@ public class BattleManager : MonoBehaviour
     private bool receivedUseDefence = false;
     private PlayerRef expectedDefenceDefenderRef;
 
+    
+
     // ★ 追加：攻撃を直列処理するためのキュー
     private struct AttackJob
     {
@@ -114,7 +116,11 @@ public class BattleManager : MonoBehaviour
         int defenderIndex = gm.players.IndexOf(defender);
 
         // ① 攻撃宣言
-        yield return EffectProcessWindow.Instance.ShowProcess($"攻撃！【{attackCard.name}】");
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"攻撃！【{attackCard.name}】", 1.0f, false));
+        else
+            yield return new WaitForSeconds(1.0f);
+
 
         // ② Block選択ウインドウ表示（自動ではなく手動選択）
         bool hasPlayableBlock = false;
@@ -127,7 +133,7 @@ public class BattleManager : MonoBehaviour
 
         if (gm != null)
         {
-            gm.RPC_OpenBlockChoice(defenderIndex);
+            gm.RPC_OpenBlockChoice(expectedBlockDefenderRef);
         }
 
         while (blockWaiting)
@@ -142,7 +148,10 @@ public class BattleManager : MonoBehaviour
 
         if (hasPlayableBlock && blockData != null)
         {
-            yield return EffectProcessWindow.Instance.ShowProcess($"相手は Block を使用します。【{blockData.name}】");
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"相手は Block を使用します。【{blockData.name}】", 1.0f, false));
+            else
+                yield return new WaitForSeconds(1.0f);
 
             // マナ支払い
             if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
@@ -151,26 +160,40 @@ public class BattleManager : MonoBehaviour
 
                 // Block効果処理
                 bool attackNegated = false;
-                yield return StartCoroutine(ApplyBlockEffect(defender, blockData, neg => attackNegated = neg));
+                yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
+
+
 
                 if (attackNegated)
                 {
-                    yield return EffectProcessWindow.Instance.ShowProcess("攻撃は Block により無効化されました。");
+                    if (EffectProcessWindow.Instance != null)
+                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃は Block により無効化されました。", 1.0f, false));
+                    else
+                        yield return new WaitForSeconds(1.0f);
                     yield break;
                 }
             }
             else
             {
-                yield return EffectProcessWindow.Instance.ShowProcess("Blockカードを使用できません（マナ不足）。");
+                if (EffectProcessWindow.Instance != null)
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("Blockカードを使用できません。", 1.0f, false));
+                else
+                    yield return new WaitForSeconds(1.0f);
             }
         }
         else
         {
-            yield return EffectProcessWindow.Instance.ShowProcess("相手は Block を使用しません。");
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("相手は Block を使用しません。", 1.0f, false));
+            else
+                yield return new WaitForSeconds(1.0f);
         }
 
         // ③ 攻撃が通った → ライフ破壊
-        yield return EffectProcessWindow.Instance.ShowProcess("攻撃がライフに通りました。ライフを破壊します。");
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃がライフに通りました。ライフを破壊します。", 1.0f, false));
+        else
+            yield return new WaitForSeconds(1.0f);
 
         CardGenerator.CardData destroyedLifeCard = null;
         if (defender.lifeManager != null)
@@ -192,8 +215,10 @@ public class BattleManager : MonoBehaviour
         // ④ DEFENCEWindow表示（どのカードタイプでも）
         if (destroyedLifeCard != null)
         {
-            yield return EffectProcessWindow.Instance.ShowProcess(
-                $"破壊されたライフカード【{destroyedLifeCard.name}】を確認します。");
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"破壊されたライフカード【{destroyedLifeCard.name}】を確認します。", 1.0f, false));
+            else
+                yield return new WaitForSeconds(1.0f);
 
             // ★ DefenceWindow は defender 側の画面に表示し、完了通知を Host が受け取る
             defenceWaiting = true;
@@ -202,7 +227,7 @@ public class BattleManager : MonoBehaviour
 
             if (gm != null)
             {
-                gm.RPC_OpenDefenceChoice(defenderIndex, destroyedLifeCard.id);
+                gm.RPC_OpenDefenceChoice(expectedDefenceDefenderRef, destroyedLifeCard.id);
             }
 
             while (defenceWaiting)
@@ -210,14 +235,19 @@ public class BattleManager : MonoBehaviour
         }
 
         // ⑤ 攻撃終了
-        yield return EffectProcessWindow.Instance.ShowProcess("攻撃完了。");
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃完了。", 1.0f, false));
+        else
+            yield return new WaitForSeconds(1.0f);
     }
 
+    int counterAttackCardId = -1;
+    bool hasCounterAttack = false;
 
     /// <summary>
     /// Block効果（Attack付き対応版）
     /// </summary>
-    private IEnumerator ApplyBlockEffect(PlayerManager defender, CardGenerator.CardData blockCard, System.Action<bool> onNegateResult)
+    private IEnumerator ApplyBlockEffect(PlayerManager defender, PlayerManager attacker, CardGenerator.CardData blockCard, System.Action<bool> onNegateResult)
     {
         bool negated = false;
 
@@ -238,7 +268,10 @@ public class BattleManager : MonoBehaviour
             string v = values[i];
             if (string.IsNullOrEmpty(t)) continue;
 
-            yield return EffectProcessWindow.Instance.ShowProcess($"Block効果 [{t}] を解決します。");
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"Block効果 [{t}] を解決します。", 1.0f, false));
+            else
+                yield return new WaitForSeconds(1.0f);
 
             switch (t)
             {
@@ -286,35 +319,48 @@ public class BattleManager : MonoBehaviour
                     }
                     break;
 
+                case "CounterAttack":
+                    hasCounterAttack = true;
+                    negated = true; // 「Blockして止めてAttackする」を1つで成立させる
+                    if (int.TryParse(v, out int cid)) counterAttackCardId = cid; // 任意：反撃に使うカードID指定
+                    break;
+
                 case "Attack":
                     hasAttack = true;
                     break;
 
                 default:
-                    yield return EffectProcessWindow.Instance.ShowProcess($"未対応のBlock効果: {t}(値: {v})");
+                    if (EffectProcessWindow.Instance != null)
+                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"未対応のBlock効果: {t}(値: {v})", 1.0f, false));
+                    else
+                        yield return new WaitForSeconds(1.0f);
                     break;
             }
         }
 
         // BlockカードがAttack効果を持つ場合 → 反撃
-        if (hasAttack)
+        if (hasCounterAttack)
         {
             yield return EffectProcessWindow.Instance.ShowProcess($"{blockCard.name} の反撃効果を発動！");
 
+            // 反撃は「Blockした側(defender) → 攻撃してきた側(attacker)」に固定
             PlayerManager counterAttacker = defender;
-            GameManager gm = FindAnyObjectByType<GameManager>();
-            PlayerManager counterDefender = null;
+            PlayerManager counterDefender = attacker;
 
-            if (gm != null)
+            // 反撃に使うカード（指定があればそれ、無ければblockCardをそのまま使う）
+            CardGenerator.CardData counterCard = blockCard;
+
+            var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+            if (counterAttackCardId >= 0 && gm != null && gm.deckManager != null)
             {
-                if (counterAttacker == gm.players[0])
-                    counterDefender = gm.players[1];
-                else
-                    counterDefender = gm.players[0];
+                var cd = gm.deckManager.GetCardDataById(counterAttackCardId);
+                if (cd != null) counterCard = cd;
             }
 
-            yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, blockCard));
+            if (counterDefender != null)
+                yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, counterCard));
         }
+
 
 
         // ★ Blockカード使用後 → 手札から削除して捨て札へ送る
@@ -327,7 +373,10 @@ public class BattleManager : MonoBehaviour
             }
             else
             {
-                yield return EffectProcessWindow.Instance.ShowProcess("反撃完了。Blockカードを捨て札へ送ります。");
+                if (EffectProcessWindow.Instance != null)
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("反撃完了。Blockカードを捨て札へ送ります。", 1.0f, false));
+                else
+                    yield return new WaitForSeconds(1.0f);
                 SendBlockToDiscard(defender, blockCard);
             }
         }

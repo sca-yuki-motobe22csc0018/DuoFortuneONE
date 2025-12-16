@@ -463,13 +463,23 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             (myData.effectType6, myData.effectValue6),
         };
 
+        bool hasAttackEffect = false;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i].type == "Attack")
+            {
+                hasAttackEffect = true;
+                break;
+            }
+        }
+
         foreach (var e in effects)
         {
             if (string.IsNullOrEmpty(e.type)) continue;
 
             bool isAuto = IsAutoEffect(e.type);
 
-            if (processWindow != null)
+            if (processWindow != null && !hasAttackEffect)
                 processWindow.ShowMessage($"効果実行中: {e.type} ({e.value})");
 
             // 効果実行（コルーチン）
@@ -486,7 +496,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             }
         }
 
-        if (processWindow != null)
+        if (processWindow != null && !hasAttackEffect)
             processWindow.ShowMessage("効果処理完了！");
 
         yield return new WaitForSeconds(0.4f);

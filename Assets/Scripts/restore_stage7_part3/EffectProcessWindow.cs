@@ -72,6 +72,45 @@ public class EffectProcessWindow : MonoBehaviour
     }
 
     //=========================================================
+    //  自動進行（一定秒数待つ）＋必要ならNextで早送り
+    //=========================================================
+    public IEnumerator ShowProcessAuto(string message, float waitSeconds, bool allowSkipByNext = true)
+    {
+        Debug.Log($"[ShowProcessAuto] {message} ({waitSeconds}s)");
+
+        if (processText != null)
+            processText.text = message;
+
+        // Nextで早送りできる（ただし待たなくても自動で進むので安全）
+        waitingForNext = true;
+
+        if (allowSkipByNext)
+            ShowNextButton(true);
+        else
+            ShowNextButton(false);
+
+        float t = 0f;
+
+        while (true)
+        {
+            // Nextが押されたら即抜け
+            if (!waitingForNext)
+                break;
+
+            // 秒数経過でも抜け（Next無しでも止まらない）
+            t += Time.deltaTime;
+            if (t >= waitSeconds)
+                break;
+
+            yield return null;
+        }
+
+        waitingForNext = false;
+        ShowNextButton(false);
+    }
+
+
+    //=========================================================
     //  外部からの進行操作
     //=========================================================
     public void ContinueProcess()

@@ -735,20 +735,24 @@ public class GameManager : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    public void RPC_OpenBlockChoice(int defenderIndex)
+    public void RPC_OpenBlockChoice(PlayerRef defenderRef)
     {
-        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) return;
+        // この端末が defender じゃなければ閉じるだけ
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) return;
 
-        // defender本人の端末だけ開く
-        if (players[defenderIndex].Object != null && players[defenderIndex].Object.HasInputAuthority)
+        if (r.LocalPlayer != defenderRef)
         {
-            StartCoroutine(Co_BlockChoice(defenderIndex));
-        }
-        else
-        {
-            // それ以外の端末は念のため閉じる
             if (BlockWindow.Instance != null) BlockWindow.Instance.gameObject.SetActive(false);
+            return;
         }
+
+        // defender端末だけ、ローカルの players[] から index を引き直す
+        int defenderIndex = FindPlayerIndexByRef(defenderRef);
+        if (defenderIndex < 0) return;
+
+        StartCoroutine(Co_BlockChoice(defenderIndex));
     }
 
     private IEnumerator Co_BlockChoice(int defenderIndex)
@@ -765,8 +769,7 @@ public class GameManager : NetworkBehaviour
         if (data != null) chosenId = data.id;
 
         var r = runner;
-        if (r == null)
-            r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
 
         if (r != null)
         {
@@ -782,19 +785,24 @@ public class GameManager : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    public void RPC_OpenDefenceChoice(int defenderIndex, int destroyedLifeCardId)
+    public void RPC_OpenDefenceChoice(PlayerRef defenderRef, int destroyedLifeCardId)
     {
-        if (players == null || defenderIndex < 0 || defenderIndex >= players.Count) return;
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) return;
 
-        if (players[defenderIndex].Object != null && players[defenderIndex].Object.HasInputAuthority)
-        {
-            StartCoroutine(Co_DefenceChoice(defenderIndex, destroyedLifeCardId));
-        }
-        else
+        if (r.LocalPlayer != defenderRef)
         {
             if (DefenceWindow.Instance != null) DefenceWindow.Instance.gameObject.SetActive(false);
+            return;
         }
+
+        int defenderIndex = FindPlayerIndexByRef(defenderRef);
+        if (defenderIndex < 0) return;
+
+        StartCoroutine(Co_DefenceChoice(defenderIndex, destroyedLifeCardId));
     }
+
 
     private IEnumerator Co_DefenceChoice(int defenderIndex, int destroyedLifeCardId)
     {
