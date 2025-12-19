@@ -391,7 +391,20 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     // ===================================
     public bool TryPlayCard()
     {
-        if (player == null || myData == null) return false;
+        if (myData == null) return false;
+
+        // ▼ 追加：Blockカードは通常使用禁止（攻撃への反応時のみ）
+        if (myData.type == "B" || myData.type == "BLOCK")
+        {
+            Debug.Log("Blockカードは手札から通常使用できません（攻撃への反応時のみ）。");
+            return false;
+        }
+        // ▼ 追加：EXカードは通常使用禁止
+        if (myData.type == "E" || myData.type == "EX")
+        {
+            Debug.Log("EXカードは手札から通常使用できません。");
+            return false;
+        }
 
         // ★ ローカルで「マナが足りているか」だけチェック（Networked のスナップショット）
         if (player.currentMana < myData.cost)
@@ -501,14 +514,25 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         yield return new WaitForSeconds(0.4f);
 
-        if (discardManager != null)
+        if (!skipAutoDiscard && myData != null && myData.type != "B" && myData.type != "BLOCK")
         {
-            if (!skipAutoDiscard && myData != null && myData.type != "BLOCK")
+            var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+            var r = FindAnyObjectByType<NetworkRunner>();
+
+            if (gm != null && r != null)
             {
+                gm.RPC_RequestAddDiscard(r.LocalPlayer, myData.id);
+            }
+            else if (discardManager != null)
+            {
+                // オフライン等のフォールバック
                 discardManager.AddToDiscard(myData);
             }
-            Destroy(gameObject);
         }
+
+        // ここは discardManager の有無に関係なく消してOK（残ると別バグの温床）
+        Destroy(gameObject);
+
     }
 
     private bool IsAutoEffect(string type)

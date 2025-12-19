@@ -1,7 +1,8 @@
+using Fusion;
 using System.Collections;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class DefenceWindow : MonoBehaviour
 {
@@ -101,7 +102,17 @@ public class DefenceWindow : MonoBehaviour
             var discard = GameManager.Instance.discardManager;
             if (discard != null)
             {
-                discard.AddToDiscard(cardData);
+                var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                var r = FindAnyObjectByType<NetworkRunner>();
+                if (gm != null && r != null)
+                {
+                    gm.RPC_RequestAddDiscard(r.LocalPlayer, cardData.id);
+                }
+                else
+                {
+                    var disCard = FindAnyObjectByType<DiscardManager>();
+                    if (disCard != null) discard.AddToDiscard(cardData);
+                }
                 Debug.Log($"DEFENCEカード {cardData.name} を捨て札ゾーンへ送信");
             }
         }
@@ -162,6 +173,8 @@ public class DefenceWindow : MonoBehaviour
         var cg = tempCard.AddComponent<CardGenerator>();
         cg.player = currentPlayer;
         cg.ApplyCardData(currentCardData);
+        cg.skipAutoDiscard = true; // ★追加：TempDefenceCardが勝手に捨て札へ送らないようにする
+
 
         yield return cg.StartCoroutine("EffectSequenceCoroutine");
 

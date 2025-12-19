@@ -249,6 +249,10 @@ public class BattleManager : MonoBehaviour
     /// </summary>
     private IEnumerator ApplyBlockEffect(PlayerManager defender, PlayerManager attacker, CardGenerator.CardData blockCard, System.Action<bool> onNegateResult)
     {
+        // ★毎回リセットしないと状態が残る
+        hasCounterAttack = false;
+        counterAttackCardId = -1;
+
         bool negated = false;
 
         string[] types = {
@@ -296,6 +300,18 @@ public class BattleManager : MonoBehaviour
                         }
                     }
                     break;
+
+                case "ManaBoost":
+                    if (int.TryParse(v, out int manaBoost) && defender != null)
+                    {
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
+                        {
+                            gm.EffectManaBoost(defender, manaBoost);
+                        }
+                    }
+                    break;
+
 
                 case "ManaRecover":
                     if (int.TryParse(v, out int manaRec) && defender != null)

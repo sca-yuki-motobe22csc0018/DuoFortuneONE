@@ -1,3 +1,4 @@
+using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -115,16 +116,26 @@ public class HandManager : MonoBehaviour
         if (card == null) return;
 
         CardGenerator cg = card.GetComponent<CardGenerator>();
-        if (cg != null && discardManager != null)
+        if (cg != null)
         {
-            var data = cg.GetCardData(); // CardGenerator ‚ÉÀ‘•Ï‚İ
+            var data = cg.GetCardData();
             if (data != null)
             {
-                discardManager.AddToDiscard(data); // š CardData ‚ğ“n‚·
+                GameManager gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                NetworkRunner runner = FindAnyObjectByType<NetworkRunner>();
+
+                if (gm != null && runner != null && gm.Object != null)
+                {
+                    gm.RPC_RequestAddDiscard(runner.LocalPlayer, data.id);
+                }
+                else if (discardManager != null)
+                {
+                    // ƒIƒtƒ‰ƒCƒ“/•ÛŒ¯
+                    discardManager.AddToDiscard(data);
+                }
             }
         }
 
-        // À•¨‚Í”jŠü
         Destroy(card);
     }
 

@@ -200,8 +200,36 @@ public class BlockWindow : MonoBehaviour
         if (selectedBlockData == null)
             return;
 
+        // ★ここが重要：Window内の複製じゃなく、手札の実体を消す
+        if (currentPlayer != null && currentPlayer.handManager != null && currentPlayer.handManager.handCards != null)
+        {
+            GameObject handObj = null;
+
+            foreach (var go in currentPlayer.handManager.handCards)
+            {
+                if (go == null) continue;
+                var cg = go.GetComponent<CardGenerator>();
+                if (cg != null && cg.cardData != null && cg.cardData.id == selectedBlockData.id)
+                {
+                    handObj = go;
+                    break;
+                }
+            }
+
+            if (handObj != null)
+            {
+                currentPlayer.handManager.RemoveCard(handObj);
+                Destroy(handObj);
+
+                // 手札枚数表示がズレるならこれも（存在する前提）
+                currentPlayer.UpdateHandCountUI();
+                currentPlayer.UpdateOpponentUI();
+            }
+        }
+
         onClose?.Invoke();
     }
+
 
     private void OnCancelClicked()
     {

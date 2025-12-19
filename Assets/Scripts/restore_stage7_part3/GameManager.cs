@@ -1,9 +1,10 @@
+using Fusion;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using Fusion;
+using static CardGenerator;
 
 public class GameManager : NetworkBehaviour
 {
@@ -980,6 +981,34 @@ public class GameManager : NetworkBehaviour
 
         UpdateAllManaUI();
     }
+
+    // ============================================================
+    // Discard 同期（捨て札共通化）
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestAddDiscard(PlayerRef requester, int cardId)
+    {
+        if (!Object.HasStateAuthority) return;
+
+        // 最小構成：Hostが確定して全員へ同期
+        RPC_SyncAddDiscard(cardId);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SyncAddDiscard(int cardId)
+    {
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
+        if (deckManager == null || discardManager == null) return;
+
+        var data = deckManager.GetCardDataById(cardId);
+        if (data != null)
+        {
+            discardManager.AddToDiscard(data);
+        }
+    }
+
 
 
     // ============================================================
