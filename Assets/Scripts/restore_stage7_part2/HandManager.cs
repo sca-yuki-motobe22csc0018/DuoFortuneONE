@@ -75,12 +75,24 @@ public class HandManager : MonoBehaviour
 
         UpdateCardPositions();
 
-        if (ownerPlayer != null)
+        // HandManager.cs の AddCard() 内（ownerPlayer != null チェックの直前あたり）
+        if (ownerPlayer == null)
+            ownerPlayer = GetComponentInParent<PlayerManager>();
+
+        // ownerPlayer が未設定の可能性があるので保険
+        if (ownerPlayer == null)
+            ownerPlayer = GetComponentInParent<PlayerManager>();
+
+        // ★追加：このカードの “所有者 player” を確定
+        var cg = card.GetComponent<CardGenerator>();
+        if (cg != null)
         {
-            ownerPlayer.NotifyHandChangedForBothSides();
-            if (ownerPlayer.opponent != null)
-                ownerPlayer.opponent.NotifyHandChangedForBothSides();
+            cg.player = ownerPlayer;
+            // ついでに揃えるなら（任意）
+            // cg.discardManager = discardManager;
         }
+
+
     }
 
     public void RemoveCard(GameObject card)
@@ -93,6 +105,12 @@ public class HandManager : MonoBehaviour
 
         // ▼ ここを CardData ベースで捨て札へ
         DiscardFromHand(card);
+        // ownerPlayer が未設定の可能性があるので保険
+        if (ownerPlayer == null)
+            ownerPlayer = GetComponentInParent<PlayerManager>();
+
+        if (ownerPlayer != null)
+            ownerPlayer.NotifyHandChangedForBothSides();
     }
 
     public void PlayCard(GameObject card)
@@ -106,6 +124,13 @@ public class HandManager : MonoBehaviour
         // 通常のプレイ時は CardGenerator.TryPlayCard() が処理する想定だが
         // ここ経由で捨てたいケースにも対応しておく
         DiscardFromHand(card);
+        // ownerPlayer が未設定の可能性があるので保険
+        if (ownerPlayer == null)
+            ownerPlayer = GetComponentInParent<PlayerManager>();
+
+        if (ownerPlayer != null)
+            ownerPlayer.NotifyHandChangedForBothSides();
+
     }
 
     /// <summary>

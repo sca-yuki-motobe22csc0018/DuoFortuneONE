@@ -310,10 +310,20 @@ public class GameManager : NetworkBehaviour
         {
             if (pm != null && pm.Object.HasInputAuthority)
             {
-                pm.UpdateHandCountUI();
+                pm.NotifyHandChangedForBothSides();
                 pm.UpdateLifeUI();   // ★ 追加
             }
         }
+        // ★追加：Hostが handCount(Networked) を確定（これをしないと opponent.handCount が 0 のままになる）
+        if (Object.HasStateAuthority)
+        {
+            if (players[0] != null && players[0].handManager != null)
+                players[0].handCount = players[0].handManager.CardCount;
+
+            if (players[1] != null && players[1].handManager != null)
+                players[1].handCount = players[1].handManager.CardCount;
+        }
+
     }
 
     // ============================================================
@@ -563,6 +573,13 @@ public class GameManager : NetworkBehaviour
         // IDからカードデータを復元して手札に追加
         var data = deckManager.GetCardDataById(cardId);
         pm.handManager.AddCardFromData(data);
+
+        // ★追加：Hostが handCount(Networked) を確定（ドローで増えた分を即同期）
+        if (Object.HasStateAuthority)
+        {
+            pm.handCount = pm.handManager.CardCount;
+        }
+
 
         // ★ 「このドローはターン開始時の選択」ならマナを回復
         if (resetMana)

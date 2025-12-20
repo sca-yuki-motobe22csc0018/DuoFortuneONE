@@ -9,6 +9,9 @@ public class PlayerManager : NetworkBehaviour
     [Networked] public int maxMana { get; set; }  // ★ Networked に変更
     [Networked] public int currentMana { get; set; }
 
+    // ★ 追加：手札枚数（Host確定で保持する）
+    [Networked] public int handCount { get; set; }
+
     [Header("マナUI")]
     public TMP_Text energyText;          // 自分のマナ
     public TMP_Text opponentEnergyText;  // 相手のマナ
@@ -43,6 +46,9 @@ public class PlayerManager : NetworkBehaviour
     // 相手ライフ用の裏面カードを管理
     private readonly List<GameObject> opponentLifeBackCards = new List<GameObject>();
 
+    // ★ UI更新の無駄を減らすためのキャッシュ
+    private int lastMyHandCount = -1;
+    private int lastOppHandCount = -1;
 
     // ================================
     //  Spawn（Prefabが参加した時） 
@@ -63,6 +69,9 @@ public class PlayerManager : NetworkBehaviour
         {
             maxMana = 2;
             currentMana = 0;
+
+            // ★ 念のため初期値
+            handCount = 0;
         }
 
         // 自分のCanvasだけ ON
@@ -75,6 +84,9 @@ public class PlayerManager : NetworkBehaviour
         // 手札＆ライフUI 初期更新（自分視点）
         if (Object.HasInputAuthority)
         {
+            // ★ 初期状態もHostへ報告（0の可能性もあるけど安全）
+            ReportHandCountToHost();
+
             UpdateHandCountUI();
             UpdateLifeUI();
         }
@@ -126,6 +138,36 @@ public class PlayerManager : NetworkBehaviour
     }
 
     // ================================
+    //  手札枚数：Host確定同期
+    // ================================
+
+    // InputAuthority（自分）→ StateAuthority（Host）へ「今の手札枚数」を報告
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_ReportHandCount(int newCount)
+    {
+        handCount = newCount;
+    }
+
+    private void ReportHandCountToHost()
+    {
+        int c = (handManager != null) ? handManager.CardCount : 0;
+
+        // Host（StateAuthority）は自分で確定できる（InputAuthority不要）
+        if (Object.HasStateAuthority)
+        {
+            handCount = c;
+            return;
+        }
+
+        // Client は InputAuthority を持っている時だけ Host に報告
+        if (Object.HasInputAuthority)
+        {
+            RPC_ReportHandCount(c);
+        }
+    }
+
+
+    // ================================
     //  UI 更新
     // ================================
 
@@ -144,27 +186,37 @@ public class PlayerManager : NetworkBehaviour
     // HandManager から呼ばれる「手札が変わったよ」通知
     public void NotifyHandChangedForBothSides()
     {
-        // 自分の入力権を持っている PlayerManager だけが
-        // ローカルUIを更新する（相手側のCanvasは非表示でOK）
-        if (!Object.HasInputAuthority)
-            return;
+        // ★ Host確定(handCount更新)は常に実行
+        ReportHandCountToHost();
 
-        UpdateHandCountUI();
+        // ★ UI更新は “自分の画面” だけ
+        if (Object.HasInputAuthority)
+            UpdateHandCountUI();
     }
+
 
     // 手札枚数UIの更新＆相手の裏面カードを並べる
     public void UpdateHandCountUI()
     {
-        // 自分の手札枚数
+        // ★ 自分のCanvasだけ更新すればOK
+        if (!Object.HasInputAuthority)
+            return;
+
+        // 自分の手札枚数（ローカル実体から）
         int myCount = (handManager != null) ? handManager.CardCount : 0;
 
-        if (myHandCountText != null)
-            myHandCountText.text = myCount.ToString();
+        if (myCount != lastMyHandCount)
+        {
+            lastMyHandCount = myCount;
+
+            if (myHandCountText != null)
+                myHandCountText.text = myCount.ToString();
+        }
 
         // 相手の手札枚数
         int oppCount = 0;
-        if (opponent != null && opponent.handManager != null)
-            oppCount = opponent.handManager.CardCount;
+        if (opponent != null)
+            oppCount = opponent.handCount;
 
         if (opponentHandCountText != null)
             opponentHandCountText.text = oppCount.ToString();
@@ -286,6 +338,10 @@ public class PlayerManager : NetworkBehaviour
         // 毎フレーム UI を最新状態に補正する
         UpdateEnergyUI();
         UpdateOpponentUI();
+
+        // ★ 相手手札枚数はNetworkedで変化するので、見えている側は追従更新
+        if (Object.HasInputAuthority)
+            UpdateHandCountUI();
     }
 
 }

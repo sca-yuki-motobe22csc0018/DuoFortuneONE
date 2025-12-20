@@ -79,7 +79,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         mainCam = Camera.main;
 
-        if (player == null) player = FindAnyObjectByType<PlayerManager>();
+        if (player == null) player = GetComponentInParent<PlayerManager>();
         if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
 
         LoadCSV();
@@ -353,6 +353,13 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             if (col != null && col.OverlapPoint(worldPos))
             {
                 used = TryPlayCard();
+
+                // ★ 追加：使用が成立した瞬間に手札枚数を Host 確定＆両画面更新
+                if (used && player != null)
+                {
+                    player.NotifyHandChangedForBothSides();
+                }
+
             }
         }
 
@@ -529,6 +536,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 discardManager.AddToDiscard(myData);
             }
         }
+        if (player != null) player.NotifyHandChangedForBothSides();
 
         // ここは discardManager の有無に関係なく消してOK（残ると別バグの温床）
         Destroy(gameObject);
