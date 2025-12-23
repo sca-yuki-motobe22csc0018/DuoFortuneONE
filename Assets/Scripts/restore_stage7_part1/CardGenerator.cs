@@ -557,7 +557,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             case "Defence":
                 return true;
             default:
-                return false;
+               return false;
         }
     }
 

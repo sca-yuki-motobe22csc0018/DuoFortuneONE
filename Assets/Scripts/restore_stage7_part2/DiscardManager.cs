@@ -1,8 +1,10 @@
+using Fusion;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using TMPro;
+using Unity.VisualScripting;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class DiscardManager : MonoBehaviour
@@ -52,6 +54,12 @@ public class DiscardManager : MonoBehaviour
 
     private List<CardGenerator.CardData> selectedCards = new List<CardGenerator.CardData>();
 
+    // 選択中の同ID枚数（回収モード表示用）
+    private int GetSelectedCountById(int id)
+    {
+        return selectedCards.Count(d => d != null && d.id == id);
+    }
+
     private bool isRecoverComplete = false;
     public bool IsRecoverComplete => isRecoverComplete;
     public bool IsRecoverMode => isRecoverMode;
@@ -71,6 +79,17 @@ public class DiscardManager : MonoBehaviour
         if (data == null) return;
         discardDataList.Add(data);
         if (isOpen) BuildFullView();
+    }
+
+    // 指定IDのカードを捨て札から1枚だけ削除（同期用）
+    public void RemoveFromDiscardById(int cardId)
+    {
+        var toRemove = discardDataList.FirstOrDefault(d => d != null && d.id == cardId);
+        if (toRemove != null)
+        {
+            discardDataList.Remove(toRemove);
+            if (isOpen) BuildFullView();
+        }
     }
 
     // 捨て札一覧の開閉
@@ -115,6 +134,13 @@ public class DiscardManager : MonoBehaviour
         {
             var data = g.First();
             int count = g.Count();
+
+            // 回収モード中は「選択済み枚数」を差し引いて表示する（discardDataList自体は変更しない）
+            if (isRecoverMode)
+            {
+                count -= GetSelectedCountById(g.Key);
+                if (count <= 0) continue;
+            }
 
             GameObject ui = Instantiate(cardDisplayPrefab, gridParent);
 
@@ -206,30 +232,49 @@ public class DiscardManager : MonoBehaviour
     // 捨て札 → 回収
     public void MoveCardToRecover(CardGenerator.CardData data)
     {
-        var toRemove = discardDataList.FirstOrDefault(d => d.id == data.id);
-        if (toRemove != null)
-        {
-            discardDataList.Remove(toRemove);
-            selectedCards.Add(toRemove);
+        if (data == null) return;
 
+        // discardDataList は「共有捨て札の実体」なので、回収選択の段階では触らない。
+        // ここで discardDataList を Remove してしまうと、Host が回収する場合に
+        // Host 側で「既に無い扱い」になって RPC_RequestRecoverDiscard 側の確定処理が空になり、
+        // Client 側の捨て札が消えない原因になる。
+
+        int selectedCount = GetSelectedCountById(data.id);
+        int totalCount = discardDataList.Count(d => d != null && d.id == data.id);
+
+        if (totalCount - selectedCount <= 0)
+        {
+            // これ以上選べない（同IDを全部選択済み）
+            return;
+        }
+
+        // 選択リスト側だけ増やす（表示上は BuildFullView で差し引く）
+        var any = discardDataList.FirstOrDefault(d => d != null && d.id == data.id);
+        if (any != null)
+        {
+            selectedCards.Add(any);
             BuildFullView();
             BuildRecoverZone();
         }
     }
+
 
     // 回収 → 捨て札
     public void MoveCardBackToDiscard(CardGenerator.CardData data)
     {
+        if (data == null) return;
+
         var toRemove = selectedCards.FirstOrDefault(d => d != null && d.id == data.id);
         if (toRemove != null)
         {
             selectedCards.Remove(toRemove);
-            discardDataList.Add(toRemove);
 
+            // discardDataList は触らない（回収確定は Host の RPC で行う）
             BuildFullView();
             BuildRecoverZone();
         }
     }
+
 
     // 完了ボタン
     public void OnCompleteButton()
@@ -305,30 +350,33 @@ public class DiscardManager : MonoBehaviour
     // OK
     public void OnConfirmOK()
     {
-        if (cardPlayablePrefab == null)
+        if (recoverTargetPlayer == null || recoverTargetPlayer.Object == null)
         {
-            Debug.LogError("cardPlayablePrefab が未設定です。Inspectorで割り当ててください。");
+            Debug.LogError("OnConfirmOK: recoverTargetPlayer が null です。");
+            EndRecoverMode();
             return;
         }
 
-        if (recoverTargetPlayer == null || recoverTargetPlayer.handManager == null)
+        var gm = FindAnyObjectByType<GameManager>();
+        if (gm == null)
         {
-            Debug.LogError("OnConfirmOK: recoverTargetPlayer または handManager が null です。");
-            EndRecoverMode();     // とりあえず回収モードだけ終了させる
+            Debug.LogError("OnConfirmOK: GameManager が見つかりません。");
+            EndRecoverMode();
             return;
         }
 
-        foreach (var data in selectedCards)
-        {
-            var go = Instantiate(cardPlayablePrefab, recoverTargetPlayer.handManager.transform);
-            var cg = go.GetComponent<CardGenerator>();
-            cg.ApplyCardData(data);
-            cg.player = recoverTargetPlayer;
-            recoverTargetPlayer.handManager.AddCard(go);
-        }
+        // 選択カードIDをHostへ送る（Hostが捨て札から削除し、手札へ追加して全員へ同期）
+        int[] recoverIds = selectedCards
+            .Where(d => d != null)
+            .Select(d => d.id)
+            .ToArray();
+
+        gm.RPC_RequestRecoverDiscard(recoverTargetPlayer.Object.InputAuthority, recoverIds);
+
         isRecoverComplete = true;
         EndRecoverMode();
     }
+
 
 
     // Cancel

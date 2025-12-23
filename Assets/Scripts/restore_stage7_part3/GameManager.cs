@@ -5,6 +5,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using static CardGenerator;
+using System.Linq;
+
 
 public class GameManager : NetworkBehaviour
 {
@@ -1025,6 +1027,68 @@ public class GameManager : NetworkBehaviour
             discardManager.AddToDiscard(data);
         }
     }
+
+    // ============================================================
+    //  捨て札回収（RecoverDiscard）同期
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestRecoverDiscard(PlayerRef requester, int[] recoverIds)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (recoverIds == null || recoverIds.Length == 0) return;
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
+        if (deckManager == null || discardManager == null) return;
+
+        int playerIndex = FindPlayerIndexByRef(requester);
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+
+        // Hostが捨て札から実在する分だけ確定して回収させる
+        List<int> accepted = new List<int>();
+
+        foreach (int id in recoverIds)
+        {
+            var toRemove = discardManager.discardDataList.FirstOrDefault(d => d != null && d.id == id);
+            if (toRemove != null)
+            {
+                discardManager.discardDataList.Remove(toRemove);
+                accepted.Add(id);
+            }
+        }
+
+        if (accepted.Count == 0) return;
+
+        RPC_SyncRecoverDiscard(playerIndex, accepted.ToArray());
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SyncRecoverDiscard(int playerIndex, int[] recoverIds)
+    {
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
+        if (deckManager == null || discardManager == null) return;
+
+        if (players == null || players.Count < 2) return;
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+
+        var pm = players[playerIndex];
+        if (pm == null || pm.handManager == null) return;
+
+        foreach (int id in recoverIds)
+        {
+            // まず捨て札から削除（自分のクライアントは既に除外済みでもOK）
+            discardManager.RemoveFromDiscardById(id);
+
+            var data = deckManager.GetCardDataById(id);
+            if (data == null) continue;
+
+            // 手札へ追加（各クライアントで同じPlayerManagerのHandManagerに追加）
+            pm.handManager.AddCardFromData(data);
+        }
+    }
+
 
 
 

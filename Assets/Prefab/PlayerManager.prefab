@@ -34,8 +34,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -107, y: 360}
-  m_SizeDelta: {x: 221.7642, y: 50}
+  m_AnchoredPosition: {x: 0, y: 360}
+  m_SizeDelta: {x: 63.8704, y: 50}
   m_Pivot: {x: 1, y: 0.5}
 --- !u!222 &8795777833105986850
 CanvasRenderer:
@@ -65,7 +65,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: OpoLife:00
+  m_text: 00
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
   m_sharedMaterial: {fileID: 8916309357934955450, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
@@ -130,7 +130,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -106.71033, w: 0}
+  m_margin: {x: 0, y: 0, z: -0.07946777, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -232,8 +232,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0}
   m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: 0, y: 980}
-  m_SizeDelta: {x: 300, y: 100}
+  m_AnchoredPosition: {x: 0, y: 1001.1}
+  m_SizeDelta: {x: 186.8983, y: 78.9}
   m_Pivot: {x: 1, y: 0}
 --- !u!222 &4055503121108325436
 CanvasRenderer:
@@ -949,8 +949,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -107, y: 425}
-  m_SizeDelta: {x: 221.7642, y: 50}
+  m_AnchoredPosition: {x: 1.5, y: 436.1}
+  m_SizeDelta: {x: 65.3704, y: 50}
   m_Pivot: {x: 1, y: 0.5}
 --- !u!222 &7003600326550417034
 CanvasRenderer:
@@ -980,7 +980,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: OpoHand:00
+  m_text: 00
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
   m_sharedMaterial: {fileID: 8916309357934955450, guid: 7e7ddb3a4bd60d1478611a4a4cecc97e, type: 2}
@@ -1045,7 +1045,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -106.71033, w: 0}
+  m_margin: {x: 0, y: 0, z: -0.07946777, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1346,8 +1346,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e33e5f60cf272c4fafd49379646aa4b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxMana: 2
+  _maxMana: 0
   _currentMana: 0
+  _handCount: 0
   energyText: {fileID: 8979666504439273452}
   opponentEnergyText: {fileID: 7820324934883158409}
   myLifeCountText: {fileID: 537636413245044029}

@@ -84,13 +84,30 @@ public class PlayerManager : NetworkBehaviour
         // 手札＆ライフUI 初期更新（自分視点）
         if (Object.HasInputAuthority)
         {
-            // ★ 初期状態もHostへ報告（0の可能性もあるけど安全）
-            ReportHandCountToHost();
+            // ★ 初期配布(RPC_InitHandsAndLife)より前に 0 を送るのを防ぐため、少し待ってから同期
+            StartCoroutine(DelayedInitialHandSync());
+
 
             UpdateHandCountUI();
             UpdateLifeUI();
         }
     }
+
+    private bool _didInitialHandSync = false;
+
+    private System.Collections.IEnumerator DelayedInitialHandSync()
+    {
+        if (_didInitialHandSync) yield break;
+        _didInitialHandSync = true;
+
+        // 1フレーム待って、さらに少し待つ（初期配布RPC・生成の反映待ち）
+        yield return null;
+        yield return new WaitForSeconds(0.05f);
+
+        // handCount の Host確定 + 自分画面の UI 更新
+        NotifyHandChangedForBothSides();
+    }
+
 
     // ================================
     //  マナ処理（Networked）
