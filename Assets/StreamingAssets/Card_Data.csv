@@ -145,7 +145,7 @@ Blockする。
 エネルギーの最大値＋１。
 相手の手札をランダムに１枚捨てさせる。
 捨て札から１枚加える。
-自分のターンならターンを終了する。",Frame_Mask,Defence,1,DiscardSelf,ALL,ManaBoost,1,RandomDiscardOpponent,1,Draw,1,RecoverDiscard,1,EndTurnIfMyTurn,1,,,,,,
+自分のターンならターンを終了する。",Frame_Mask,Defence,1,RandomDiscardSelf,ALL,ManaBoost,1,RandomDiscardOpponent,1,Draw,1,RecoverDiscard,1,EndTurnIfMyTurn,1,,,,,,
 3019,キャッチ＆リリース,,D,R,2,３枚ドローし、手札を２枚捨てる。,Frame_Mask,Defence,1,Draw,3,DiscardSelf,2,,,,,,,,,,,,,,
 3020,落穂ひろい,おちぼひろい,D,R,2,"捨て札から１枚加える。
 相手のターンなら捨て札からもう２枚加える。",3020,Defence,1,RecoverDiscard,1,RecoverDiscardIfOpponentTurn,2,,,,,,,,,,,,,,
