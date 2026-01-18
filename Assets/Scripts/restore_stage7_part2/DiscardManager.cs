@@ -64,6 +64,8 @@ public class DiscardManager : MonoBehaviour
     public bool IsRecoverComplete => isRecoverComplete;
     public bool IsRecoverMode => isRecoverMode;
 
+
+
     void Start()
     {
         if (fullViewPanel != null) fullViewPanel.SetActive(false);

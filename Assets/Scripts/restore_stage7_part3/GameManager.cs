@@ -48,6 +48,18 @@ public class GameManager : NetworkBehaviour
 
     private NetworkRunner runner;
 
+    // ============================================================
+    // Host only: hand id list (authoritative)
+    // ============================================================
+    private List<int> hostHandIdsP0 = new List<int>();
+    private List<int> hostHandIdsP1 = new List<int>();
+
+    private List<int> GetHostHandIdList(int playerIndex)
+    {
+        return (playerIndex == 0) ? hostHandIdsP0 : hostHandIdsP1;
+    }
+
+
     private void Awake()
     {
         Instance = this;
@@ -285,6 +297,16 @@ public class GameManager : NetworkBehaviour
                 p1.handManager.AddCardFromData(data);
             }
         }
+        // ★ Host only: 初期手札IDリストを確定
+        if (Object.HasStateAuthority)
+        {
+            hostHandIdsP0 = new List<int>(p0Hand);
+            hostHandIdsP1 = new List<int>(p1Hand);
+
+            if (players[0] != null) players[0].handCount = hostHandIdsP0.Count;
+            if (players[1] != null) players[1].handCount = hostHandIdsP1.Count;
+        }
+
 
         // ---------- ライフ ----------
         if (p0.lifeManager != null)
@@ -575,6 +597,16 @@ public class GameManager : NetworkBehaviour
         // IDからカードデータを復元して手札に追加
         var data = deckManager.GetCardDataById(cardId);
         pm.handManager.AddCardFromData(data);
+
+        // ★ Host only: ドローで手札ID追加＆handCount確定
+        if (Object.HasStateAuthority)
+        {
+            var list = GetHostHandIdList(playerIndex);
+            list.Add(cardId);
+
+            if (pm != null) pm.handCount = list.Count;
+        }
+
 
         // ★追加：Hostが handCount(Networked) を確定（ドローで増えた分を即同期）
         if (Object.HasStateAuthority)
@@ -1010,6 +1042,17 @@ public class GameManager : NetworkBehaviour
     {
         if (!Object.HasStateAuthority) return;
 
+        // ★ Host only: requester の手札IDリストからこのIDを1枚だけ抜く
+        int pIndex = FindPlayerIndexByRef(requester);
+        if (pIndex >= 0)
+        {
+            var list = GetHostHandIdList(pIndex);
+            list.Remove(cardId); // 同IDが複数あれば1枚だけ消える
+
+            if (players[pIndex] != null) players[pIndex].handCount = list.Count;
+        }
+
+
         // 最小構成：Hostが確定して全員へ同期
         RPC_SyncAddDiscard(cardId);
     }
@@ -1089,6 +1132,149 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestDiscardFromHand(PlayerRef requester, PlayerRef targetRef, int[] cardIds)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (cardIds == null || cardIds.Length == 0) return;
+
+        int targetIndex = FindPlayerIndexByRef(targetRef);
+        if (targetIndex < 0) return;
+
+        var list = GetHostHandIdList(targetIndex);
+
+        // Host確定：手札にある分だけ採用（多重IDにも対応）
+        List<int> accepted = new List<int>();
+        foreach (int id in cardIds)
+        {
+            if (list.Contains(id))
+            {
+                list.Remove(id);
+                accepted.Add(id);
+            }
+        }
+
+        if (accepted.Count == 0) return;
+
+        // handCount 確定
+        if (players[targetIndex] != null) players[targetIndex].handCount = list.Count;
+
+        // 全員に適用
+        RPC_SyncDiscardFromHand(targetIndex, accepted.ToArray());
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SyncDiscardFromHand(int targetIndex, int[] cardIds)
+    {
+        if (cardIds == null || cardIds.Length == 0) return;
+        if (players == null || targetIndex < 0 || targetIndex >= players.Count) return;
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
+
+        var targetPM = players[targetIndex];
+        if (targetPM == null) return;
+
+        // 1) 共有捨て札へ追加（全員で同じ結果）
+        if (deckManager != null && discardManager != null)
+        {
+            foreach (int id in cardIds)
+            {
+                var data = deckManager.GetCardDataById(id);
+                if (data != null) discardManager.AddToDiscard(data);
+            }
+        }
+
+        // 2) 対象本人だけ：手札の実カード(GameObject)を消す
+        if (targetPM.Object != null && targetPM.Object.HasInputAuthority && targetPM.handManager != null)
+        {
+            foreach (int id in cardIds)
+            {
+                RemoveLocalHandCardById(targetPM, id);
+            }
+
+            targetPM.handManager.UpdateCardPositions();
+            targetPM.UpdateHandCountUI(); // 自分画面の即時反映
+        }
+    }
+
+    // 対象本人の端末だけで実行される「手札実体の削除」
+    private void RemoveLocalHandCardById(PlayerManager pm, int cardId)
+    {
+        if (pm == null || pm.handManager == null) return;
+
+        GameObject found = null;
+
+        // handCards を優先検索
+        foreach (var go in pm.handManager.handCards)
+        {
+            if (go == null) continue;
+            var cg = go.GetComponent<CardGenerator>();
+            if (cg != null && cg.cardData != null && cg.cardData.id == cardId)
+            {
+                found = go;
+                break;
+            }
+        }
+
+        // 念のため：手札リストから外れてるカードも探す（ドラッグ中等）
+        if (found == null)
+        {
+            var cgs = pm.handManager.GetComponentsInChildren<CardGenerator>(true);
+            foreach (var cg in cgs)
+            {
+                if (cg != null && cg.cardData != null && cg.cardData.id == cardId)
+                {
+                    found = cg.gameObject;
+                    break;
+                }
+            }
+        }
+
+        if (found != null)
+        {
+            pm.handManager.handCards.Remove(found);
+            Destroy(found);
+        }
+    }
+
+    // ============================================================
+    //  ランダム捨て（Host確定）
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestRandomDiscard(PlayerRef requester, PlayerRef targetRef, int count)
+    {
+        if (!Object.HasStateAuthority) return;
+
+        int targetIndex = FindPlayerIndexByRef(targetRef);
+        if (targetIndex < 0 || targetIndex >= players.Count) return;
+
+        if (count <= 0) return;
+
+        var list = GetHostHandIdList(targetIndex);
+        if (list == null || list.Count == 0) return;
+
+        int n = Mathf.Min(count, list.Count);
+
+        List<int> accepted = new List<int>(n);
+
+        // Hostがランダムに選んで確定（ここだけで完結させる）
+        for (int i = 0; i < n; i++)
+        {
+            int idx = UnityEngine.Random.Range(0, list.Count);
+            int id = list[idx];
+            list.RemoveAt(idx);
+            accepted.Add(id);
+        }
+
+        // handCount確定
+        if (players[targetIndex] != null)
+            players[targetIndex].handCount = list.Count;
+
+        // 全員へ適用（捨て札追加＋対象本人の手札実体削除）
+        RPC_SyncDiscardFromHand(targetIndex, accepted.ToArray());
+    }
 
 
 

@@ -608,6 +608,37 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 yield return StartCoroutine(DoEndTurnRoutine());
                 break;
 
+            case "RandomDiscardSelf":
+                {
+                    int cnt = 1;
+                    int.TryParse(value, out cnt);
+                    cnt = Mathf.Max(1, cnt);
+
+                    var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                    var runner = FindAnyObjectByType<NetworkRunner>();
+                    if (gm != null && runner != null)
+                    {
+                        gm.RPC_RequestRandomDiscard(runner.LocalPlayer, runner.LocalPlayer, cnt);
+                    }
+                    break;
+                }
+
+            case "RandomDiscardOpponent":
+                {
+                    int cnt = 1;
+                    int.TryParse(value, out cnt);
+                    cnt = Mathf.Max(1, cnt);
+
+                    var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                    var runner = FindAnyObjectByType<NetworkRunner>();
+                    if (gm != null && runner != null && player != null && player.opponent != null && player.opponent.Object != null)
+                    {
+                        gm.RPC_RequestRandomDiscard(runner.LocalPlayer, player.opponent.Object.InputAuthority, cnt);
+                    }
+                    break;
+                }
+
+
             default:
                 // 未対応でも必ず Next を出して止める
                 yield return EffectProcessWindow.Instance.ShowProcess(
