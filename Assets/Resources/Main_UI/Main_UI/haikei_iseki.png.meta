@@ -147,7 +147,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      haikei_iseki_0: 3495772678953258835
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

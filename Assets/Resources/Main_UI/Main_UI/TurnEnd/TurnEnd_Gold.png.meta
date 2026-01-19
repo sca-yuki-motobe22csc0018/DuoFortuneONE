@@ -147,7 +147,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      TurnEnd_Gold_0: 2484419588374235834
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
