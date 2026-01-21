@@ -6,7 +6,7 @@ Attackを２回する。
 Attackを１回する。",1002,ManaReduceMax,1,Attack,1,,,,,,,,,,,,,,,,
 1003,突撃衝動,ストレート・インパクト,A,R,2,"エネルギーの最大値ー１。
 手札を２枚捨てる。
-Attackを１回する。",1003,ManaReduceMax,1,DiscardSelf,2,Attack,1,,,,,,,,,,,,,,
+Attackを１回する。",1003,ManaReduceMax,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 1004,決死の煌めき,ファイナル・ベット,A,R,10,"エネルギーの最大値ー１０。
 手札を全て捨てる。
 Attackを５回する。",1004,ManaReduceMax,10,RandomDiscardSelf,ALL,Attack,1,Attack,1,Attack,1,Attack,1,Attack,1,,,,,,
@@ -26,10 +26,10 @@ Attackを２回する。",1012,ManaReduceMax,2,RandomDiscardSelf,ALL,Attack,1,,,
 エネルギーの最大値＋１。",2002,Block,1,Draw,1,ManaBoost,1,,,,,,,,,,,,,,
 2003,レオニダスの誇り,レオニダス・プライド,B,R,3,"Blockする。
 手札を２枚捨てる。
-Attackを１回する。",2003,Block,1,DiscardSelf,2,Attack,1,,,,,,,,,,,,,,
+Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 2004,血涙の堆肥,けつるいのたいひ,B,R,2,ライフゾーンに１枚置く。,2004,LifeAdd,1,,,,,,,,,,,,,,,,,,
 2006,生命の増殖,ゾクゾク・ライフ,B,R,5,"エネルギーの最大値ー１。
-ライフゾーンに２枚置く。",2006,ManaReduceMax,1,LifeAdd,2,,,,,,,,,,,,,,,,
+ライフゾーンに２枚置く。",2006,ManaReduceMaxI14,1,LifeAdd,2,,,,,,,,,,,,,,,,
 2008,Resurrect Shield・α,リザレクトシールド・アルファ,B,R,3,"Blockする。
 エネルギーの最大値＋１。
 エネルギーを２回復。",2008,Block,1,ManaBoost,1,ManaRecover,2,,,,,,,,,,,,,,
@@ -52,7 +52,7 @@ Attackを１回する。",2003,Block,1,DiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 エネルギーを３回復。",3003,Defence,1,ManaReduceIfMyTurn,3,Draw,2,RecoverDiscard,2,ManaRecover,3,,,,,,,,,,
 3004,傲慢と強欲と暴食の邂逅,トライアル・シンズ,D,R,3,"エネルギーの最大値＋２。
 ２ドローし、手札を１枚捨てる。
-相手の手札をランダムに１枚捨てさせる。",3004,Defence,1,ManaBoost,2,Draw,2,DiscardSelf,1,RandomDiscardOpponent,1,,,,,,,,,,
+相手の手札をランダムに１枚捨てさせる。",3004,Defence,1,ManaBoost,2,Draw,2,SelectDiscardSelf,1,RandomDiscardOpponent,1,,,,,,,,,,
 3005,ゴミ捨て場の掘り出し物,ダスト・サルベージ,D,R,3,"２枚ドロー。
 エネルギーの最大値＋１。
 捨て札から１枚加える。
@@ -70,9 +70,9 @@ Attackを１回する。",2003,Block,1,DiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 エネルギーを３回復。",3010,Defence,1,ManaReduceIfMyTurn,3,RandomDiscardOpponent,4,RecoverDiscard,2,ManaRecover,3,,,,,,,,,,
 3014,豊穣の一滴,ほうじょうのいってき,D,R,1,エネルギーの最大値を＋１。,3014,Defence,1,ManaBoost,1,,,,,,,,,,,,,,,,
 3015,一時の損得感情,いっときのそんとくかんじょう,D,R,1,"相手の手札をランダムに１枚捨てさせる。
-手札を２枚捨てる。",3015,Defence,1,RandomDiscardOpponent,1,DiscardSelf,2,,,,,,,,,,,,,,
+手札を２枚捨てる。",3015,Defence,1,RandomDiscardOpponent,1,SelectDiscardSelf,2,,,,,,,,,,,,,,
 3017,計画なき開拓,けいかくなきかいたく,D,R,1,"エネルギーの最大値を＋２。
-手札を３枚捨てる。",3017,Defence,1,ManaBoost,1,DiscardSelf,3,,,,,,,,,,,,,,
+手札を３枚捨てる。",3017,Defence,1,ManaBoost,1,SelectDiscardSelf,3,,,,,,,,,,,,,,
 3018,持たざる力,リベンジャー,D,R,1,"手札を全て捨てる。
 １枚ドロー。
 エネルギーの最大値＋１。
@@ -87,9 +87,10 @@ Attackを１回する。",2003,Block,1,DiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 エネルギーを２回復。",3021,Defence,1,ManaReduceIfMyTurn,2,Draw,2,RandomDiscardOpponent,2,RecoverDiscard,1,ManaRecover,2,,,,,,,,
 3022,緊急脱出ボタン,ポチっとな,D,R,2,"３枚ドローし、手札を２枚捨てる。
 エネルギーを２回復。
-ターンを終了する。",3022,Defence,1,Draw,3,DiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
+ターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
 3023,cmd:crd/sqc,コマンド：シード・スカーク,D,R,9,"自分のターンならエネルギーの最大値をー３。
-相手の手札を全て捨てさせる。",3023,Defence,1,ManaReduceIfMyTurn+K56,3,DiscardOpponent,ALL,,,,,,,,,,,,,,
+相手の手札を全て捨てさせる。
+自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn+K56,3,DiscardOpponent,ALL,RandomDiscardSelf,ALL,,,,,,,,,,,,
 4001,EX_001,ルール_001,E,R,0,"このカードを手札に加えたとき
 これと同名のカードが5枚あるなら
 自分はゲームに勝利する。",4001,EX_001,1,,,,,,,,,,,,,,,,,,

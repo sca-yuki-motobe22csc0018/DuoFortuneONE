@@ -188,7 +188,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     void LoadCSV()
     {
-        string path = Application.streamingAssetsPath + "/Card_Data.csv";
+        string path = Application.streamingAssetsPath + "/Card_Data_beta.csv";
         if (!File.Exists(path)) return;
 
         string csvText = File.ReadAllText(path, Encoding.UTF8);
@@ -637,6 +637,21 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                     }
                     break;
                 }
+            case "SelectDiscardSelf":
+                {
+                    // "ALL" 対応：全部捨てる
+                    if (value == "ALL")
+                    {
+                        yield return StartCoroutine(DoSelectDiscardSelfRoutine(-1));
+                    }
+                    else if (int.TryParse(value, out int cnt))
+                    {
+                        cnt = Mathf.Max(1, cnt);
+                        yield return StartCoroutine(DoSelectDiscardSelfRoutine(cnt));
+                    }
+                    break;
+                }
+
 
 
             default:
@@ -836,6 +851,20 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         gm.RPC_RequestAttack(runner.LocalPlayer, cardID);
 
         yield break;
+    }
+    private IEnumerator DoSelectDiscardSelfRoutine(int count)
+    {
+        var ui = FindAnyObjectByType<HandDiscardSelectManager>();
+        if (ui == null) yield break;
+
+        if (count < 0)
+            yield return EffectProcessWindow.Instance.ShowProcess("手札を全て捨てます。");
+        else
+            yield return EffectProcessWindow.Instance.ShowProcess($"手札から {count} 枚捨てます。");
+
+        ui.StartSelectDiscardMode(player, count);
+
+        yield return new WaitUntil(() => ui.IsComplete);
     }
 
 }
