@@ -57,7 +57,7 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 エネルギーの最大値＋１。
 捨て札から１枚加える。
 エネルギーを全て回復。
-自分のターンならターンを終了する。",3005,Defence,1,Draw,2,ManaBoost,1,RecoverDiscard,1,ManaRecover,ALL,EndTurnIfMyTurn,1,,,,,,,,
+自分のターンならターンを終了する。",3005,Defence,1,Draw,2,ManaBoost,1,RecoverDiscard,1,ManaRecover,ALL,EndTurn,1,,,,,,,,
 3006,反撃の狼煙[蒼],はんげきののろし[そう],D,R,2,エネルギーの最大値＋２。,3006,Defence,1,ManaBoost,2,,,,,,,,,,,,,,,,
 3007,反撃の狼煙[碧],はんげきののろし[へき],D,R,1,２枚ドロー。,3007,Defence,1,Draw,2,,,,,,,,,,,,,,,,
 3008,反撃の狼煙[玄],はんげきののろし[くろ],D,R,2,"１枚ドロー。
@@ -72,13 +72,13 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 3015,一時の損得感情,いっときのそんとくかんじょう,D,R,1,"相手の手札をランダムに１枚捨てさせる。
 手札を２枚捨てる。",3015,Defence,1,RandomDiscardOpponent,1,SelectDiscardSelf,2,,,,,,,,,,,,,,
 3017,計画なき開拓,けいかくなきかいたく,D,R,1,"エネルギーの最大値を＋２。
-手札を３枚捨てる。",3017,Defence,1,ManaBoost,1,SelectDiscardSelf,3,,,,,,,,,,,,,,
+手札を３枚捨てる。",3017,Defence,1,ManaBoost,2,SelectDiscardSelf,3,,,,,,,,,,,,,,
 3018,持たざる力,リベンジャー,D,R,1,"手札を全て捨てる。
 １枚ドロー。
 エネルギーの最大値＋１。
 相手の手札をランダムに１枚捨てさせる。
 捨て札から１枚加える。
-自分のターンならターンを終了する。",3018,Defence,1,RandomDiscardSelf,ALL,Draw,1,ManaBoost,1,RandomDiscardOpponent,1,RecoverDiscard,1,EndTurnIfMyTurn,1,,,,,,
+自分のターンならターンを終了する。",3018,Defence,1,SelectDiscardSelf,ALL,Draw,1,ManaBoost,1,RandomDiscardOpponent,1,RecoverDiscard,1,EndTurn,1,,,,,,
 3020,落穂ひろい,おちぼひろい,D,R,2,捨て札から１枚加える。,3020,Defence,1,RecoverDiscard,1,,,,,,,,,,,,,,,,
 3021,憤怒と色欲と嫉妬の争求,トライアル・ディザイア,D,R,6,"自分のターンならエネルギーの最大値をー２。
 ２枚ドロー。
@@ -87,7 +87,7 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 エネルギーを２回復。",3021,Defence,1,ManaReduceIfMyTurn,2,Draw,2,RandomDiscardOpponent,2,RecoverDiscard,1,ManaRecover,2,,,,,,,,
 3022,緊急脱出ボタン,ポチっとな,D,R,2,"３枚ドローし、手札を２枚捨てる。
 エネルギーを２回復。
-ターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
+自分のターンならターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
 3023,cmd:crd/sqc,コマンド：シード・スカーク,D,R,9,"自分のターンならエネルギーの最大値をー３。
 相手の手札を全て捨てさせる。
 自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn+K56,3,DiscardOpponent,ALL,RandomDiscardSelf,ALL,,,,,,,,,,,,

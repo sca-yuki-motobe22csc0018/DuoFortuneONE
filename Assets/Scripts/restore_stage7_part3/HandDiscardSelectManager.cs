@@ -6,6 +6,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class HandDiscardSelectManager : MonoBehaviour
 {
@@ -45,6 +46,8 @@ public class HandDiscardSelectManager : MonoBehaviour
         if (selectPanel != null) selectPanel.SetActive(false);
         if (confirmPanel != null) confirmPanel.SetActive(false);
         if (warningText != null) warningText.gameObject.SetActive(false);
+
+        UpdateToConfirmButton();
     }
 
     // =========================
@@ -71,14 +74,25 @@ public class HandDiscardSelectManager : MonoBehaviour
             return;
         }
 
+        int handCount = Mathf.Max(0, targetPlayer.handManager.CardCount);
+
         // ALL扱い：limit < 0 のとき、開始時点の手札枚数にする
+        // それ以外：指定枚数より手札が少なければ「全捨て」扱いにする（詰み防止）
         if (limit < 0)
         {
-            discardLimit = Mathf.Max(0, targetPlayer.handManager.CardCount);
+            discardLimit = handCount;
         }
         else
         {
-            discardLimit = Mathf.Max(1, limit);
+            int req = Mathf.Max(1, limit);
+            discardLimit = Mathf.Min(req, handCount);
+        }
+
+        // 手札が0なら選びようがないので即完了
+        if (discardLimit <= 0)
+        {
+            Finish();
+            return;
         }
 
         if (limitText != null)
@@ -91,6 +105,7 @@ public class HandDiscardSelectManager : MonoBehaviour
 
         BuildHandList();
         BuildSelectedList();
+        UpdateToConfirmButton();
     }
 
     // =========================
@@ -154,10 +169,14 @@ public class HandDiscardSelectManager : MonoBehaviour
             {
                 // 3引数版がプロジェクトに存在している前提（DiscardManagerのconfirmでも使ってる）
                 cardUI.SetCard(data, remain, null);
+
+                // ★ ここは「手札捨て選択UI」なので、短押しでは詳細を出さない
+                // 詳細は CardUI の長押し（CardDetailPanel.Instance.Show）だけに統一する
             }
 
+            // ★ クリックで詳細を出す系の挙動があるなら封じる（選択クリックと競合するため）
             var detail = ui.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
+            if (detail != null) detail.enabled = false;
 
             // クリックで「選択に追加」
             AttachClick(ui, () => OnClickHandCard(data.id));
@@ -191,10 +210,13 @@ public class HandDiscardSelectManager : MonoBehaviour
             if (cardUI != null)
             {
                 cardUI.SetCard(data, count, null);
+
+                // ★ 詳細は長押しだけ
             }
 
+            // ★ クリック詳細を封じる
             var detail = ui.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
+            if (detail != null) detail.enabled = false;
 
             // クリックで「選択から戻す（1枚分だけ）」
             AttachClick(ui, () => OnClickSelectedCard(id));
@@ -227,18 +249,18 @@ public class HandDiscardSelectManager : MonoBehaviour
             if (cardUI != null)
             {
                 cardUI.SetCard(data, count, null);
+
+                // ★ 詳細は長押しだけ
             }
 
+            // ★ クリック詳細を封じる
             var detail = ui.GetComponent<CardUIDetail>();
-            if (detail != null) detail.Init(data);
+            if (detail != null) detail.enabled = false;
         }
 
         if (confirmMessage != null)
         {
-            if (selectedCardIds.Count < discardLimit)
-                confirmMessage.text = $"まだ選べますが大丈夫ですか？（{selectedCardIds.Count}/{discardLimit}）";
-            else
-                confirmMessage.text = $"これを捨てますか？（{selectedCardIds.Count}/{discardLimit}）";
+            confirmMessage.text = $"これを捨てますか？（{selectedCardIds.Count}/{discardLimit}）";
         }
     }
 
@@ -258,6 +280,7 @@ public class HandDiscardSelectManager : MonoBehaviour
         selectedCardIds.Add(cardId);
         BuildHandList();
         BuildSelectedList();
+        UpdateToConfirmButton();
     }
 
     private void OnClickSelectedCard(int cardId)
@@ -270,6 +293,20 @@ public class HandDiscardSelectManager : MonoBehaviour
             selectedCardIds.RemoveAt(idx);
             BuildHandList();
             BuildSelectedList();
+            UpdateToConfirmButton();
+        }
+    }
+
+    private void UpdateToConfirmButton()
+    {
+        if (toConfirmButton == null) return;
+
+        bool canGo = (discardLimit > 0 && selectedCardIds.Count == discardLimit);
+
+        var btn = toConfirmButton.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.interactable = canGo;
         }
     }
 
@@ -296,16 +333,16 @@ public class HandDiscardSelectManager : MonoBehaviour
     {
         if (!isSelecting) return;
 
-        if (selectedCardIds.Count == 0)
+        if (discardLimit <= 0)
         {
-            ShowWarning("捨てるカードを選んでください。");
+            Finish();
             return;
         }
 
-        // 多すぎる場合は止める（保険）
-        if (selectedCardIds.Count > discardLimit)
+        // ★ ぴったりルール
+        if (selectedCardIds.Count != discardLimit)
         {
-            ShowWarning($"指定枚数（{discardLimit}枚）より多く選択しています！", 1f);
+            ShowWarning($"指定枚数（{discardLimit}枚）ぴったり選んでください。");
             return;
         }
 
@@ -324,6 +361,13 @@ public class HandDiscardSelectManager : MonoBehaviour
     public void OnConfirmOk()
     {
         if (!isSelecting) return;
+
+        // ★ ぴったりルール（保険）
+        if (discardLimit > 0 && selectedCardIds.Count != discardLimit)
+        {
+            ShowWarning($"指定枚数（{discardLimit}枚）ぴったり選んでください。");
+            return;
+        }
 
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         var runner = FindAnyObjectByType<NetworkRunner>();

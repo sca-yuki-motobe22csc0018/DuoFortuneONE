@@ -47,6 +47,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectType4;
         public string effectType5;
         public string effectType6;
+        public string effectType7;
 
         public string effectValue1;
         public string effectValue2;
@@ -54,6 +55,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectValue4;
         public string effectValue5;
         public string effectValue6;
+        public string effectValue7;
     }
 
     [HideInInspector] public PlayerManager player;
@@ -226,6 +228,8 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 effectValue5 = values.Length > 17 ? values[17] : "0",
                 effectType6 = values.Length > 18 ? values[18] : "",
                 effectValue6 = values.Length > 19 ? values[19] : "0",
+                effectType7 = values.Length > 20 ? values[20] : "",
+                effectValue7 = values.Length > 21 ? values[21] : "0",
             };
 
             cardList.Add(data);
@@ -481,6 +485,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             (myData.effectType4, myData.effectValue4),
             (myData.effectType5, myData.effectValue5),
             (myData.effectType6, myData.effectValue6),
+            (myData.effectType7, myData.effectValue7),
         };
 
         bool hasAttackEffect = false;
