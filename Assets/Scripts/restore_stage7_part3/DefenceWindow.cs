@@ -174,6 +174,7 @@ public class DefenceWindow : MonoBehaviour
         cg.player = currentPlayer;
         cg.ApplyCardData(currentCardData);
         cg.skipAutoDiscard = true; // ★追加：TempDefenceCardが勝手に捨て札へ送らないようにする
+        cg.isDefenceWindowUse = true; // ★ DEFENCEウインドウ経由フラグ（手札から使う時は発動しない）
 
 
         yield return cg.StartCoroutine("EffectSequenceCoroutine");

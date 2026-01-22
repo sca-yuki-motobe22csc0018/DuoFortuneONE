@@ -9,6 +9,9 @@ public class PlayerManager : NetworkBehaviour
     [Networked] public int maxMana { get; set; }  // ★ Networked に変更
     [Networked] public int currentMana { get; set; }
 
+
+    [Header("Mana Limit")]
+    public int maxManaLimit = 10;
     // ★ 追加：手札枚数（Host確定で保持する）
     [Networked] public int handCount { get; set; }
 
@@ -142,13 +145,29 @@ public class PlayerManager : NetworkBehaviour
 
     public void IncreaseMaxMana(int amount)
     {
-        maxMana += amount;
+        maxMana = Mathf.Min(maxMana + amount, maxManaLimit);
         ResetMana();
     }
 
     public void IncreaseMaxManaOnly(int amount)
     {
-        maxMana += amount;
+        maxMana = Mathf.Min(maxMana + amount, maxManaLimit);
+        currentMana = Mathf.Min(currentMana, maxMana);
+        UpdateEnergyUI();
+        UpdateOpponentUI();
+    }
+
+    public void DecreaseMaxMana(int amount)
+    {
+        maxMana = Mathf.Max(maxMana - amount, 0);
+        currentMana = Mathf.Min(currentMana, maxMana);
+        UpdateEnergyUI();
+        UpdateOpponentUI();
+    }
+
+    public void DecreaseMaxManaOnly(int amount)
+    {
+        maxMana = Mathf.Max(maxMana - amount, 0);
         currentMana = Mathf.Min(currentMana, maxMana);
         UpdateEnergyUI();
         UpdateOpponentUI();

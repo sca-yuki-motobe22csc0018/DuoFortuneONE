@@ -1,26 +1,26 @@
 ﻿  ,Name,ruby,Type,Rarity,Cost,Text,Image,effectType1,effectValue1,effectType2,effectValue2,effectType3,effectValue3,effectType4,effectValue4,effectType5,effectValue5,effectType6,effectValue6,effectType7,effectValue7,effectType8,effectValue8,effectType9,effectValue9,effectType10,effectValue10
 1001,ドルツヴァイ・アングリフ,,A,R,7,"エネルギーの最大値ー３。
 Attackを２回する。
-相手のエネルギーの最大値ー２。",1001,ManaReduceMax,2,Attack,1,Attack,1,ManaReduceMaxOpponent,2,,,,,,,,,,,,
+相手のエネルギーの最大値ー２。",1001,ManaReduceSelf,3,Attack,1,Attack,1,ManaReduceOpponent,2,,,,,,,,,,,,
 1002,基本の聖剣,きほんのせいけん,A,R,3,"エネルギーの最大値ー１。
-Attackを１回する。",1002,ManaReduceMax,1,Attack,1,,,,,,,,,,,,,,,,
+Attackを１回する。",1002,ManaReduceSelf,1,Attack,1,,,,,,,,,,,,,,,,
 1003,突撃衝動,ストレート・インパクト,A,R,2,"エネルギーの最大値ー１。
 手札を２枚捨てる。
-Attackを１回する。",1003,ManaReduceMax,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,,
+Attackを１回する。",1003,ManaReduceSelf,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 1004,決死の煌めき,ファイナル・ベット,A,R,10,"エネルギーの最大値ー１０。
 手札を全て捨てる。
-Attackを５回する。",1004,ManaReduceMax,10,RandomDiscardSelf,ALL,Attack,1,Attack,1,Attack,1,Attack,1,Attack,1,,,,,,
+Attackを５回する。",1004,ManaReduceSelf,10,SelectDiscardSelf,ALL,Attack,1,Attack,1,Attack,1,Attack,1,Attack,1,,,,,,
 1009,瞬間双撃,クイックスウィープ,A,R,5,"エネルギーの最大値ー２。
-Attackを２回する。",1009,ManaReduceMax,2,Attack,2,,,,,,,,,,,,,,,,
+Attackを２回する。",1009,ManaReduceSelf,2,Attack,1,Attack,1,,,,,,,,,,,,,,
 1010,死と生,デッド・アンド・アライヴ,A,R,5,"エネルギーの最大値ー１。
 ライフゾーンに１枚置く。
-Attackを１回する。",1010,ManaReduceMax,1,LifeAdd,1,Attack,1,,,,,,,,,,,,,,
+Attackを１回する。",1010,ManaReduceSelf,1,LifeAdd,1,Attack,1,,,,,,,,,,,,,,
 1011,定められし運命,さだめられしうんめい,A,R,0,"エネルギーの最大値ー１０。
 手札を全て捨てる。
-Attackを１回する。",1011,ManaReduceMax,10,RandomDiscardSelf,ALL,Attack,1,OpenLife,1,,,,,,,,,,,,
+Attackを１回する。",1011,ManaReduceSelf,10,SelectDiscardSelf,ALL,Attack,1,OpenLife,1,,,,,,,,,,,,
 1012,見えざる神の手,アダムスキー,A,R,4,"エネルギーの最大値ー２。
 手札を全て捨てる。
-Attackを２回する。",1012,ManaReduceMax,2,RandomDiscardSelf,ALL,Attack,1,,,,,,,,,,,,,,
+Attackを２回する。",1012,ManaReduceSelf,2,SelectDiscardSelf,ALL,Attack,1,Attack,1,,,,,,,,,,,,
 2002,緊急防衛陣,きんきゅうぼうえいじん,B,R,2,"Blockする。
 １枚ドロー。
 エネルギーの最大値＋１。",2002,Block,1,Draw,1,ManaBoost,1,,,,,,,,,,,,,,
@@ -29,7 +29,7 @@ Attackを２回する。",1012,ManaReduceMax,2,RandomDiscardSelf,ALL,Attack,1,,,
 Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,,
 2004,血涙の堆肥,けつるいのたいひ,B,R,2,ライフゾーンに１枚置く。,2004,LifeAdd,1,,,,,,,,,,,,,,,,,,
 2006,生命の増殖,ゾクゾク・ライフ,B,R,5,"エネルギーの最大値ー１。
-ライフゾーンに２枚置く。",2006,ManaReduceMaxI14,1,LifeAdd,2,,,,,,,,,,,,,,,,
+ライフゾーンに２枚置く。",2006,ManaReduceSelf,1,LifeAdd,2,,,,,,,,,,,,,,,,
 2008,Resurrect Shield・α,リザレクトシールド・アルファ,B,R,3,"Blockする。
 エネルギーの最大値＋１。
 エネルギーを２回復。",2008,Block,1,ManaBoost,1,ManaRecover,2,,,,,,,,,,,,,,
@@ -63,7 +63,7 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 3008,反撃の狼煙[玄],はんげきののろし[くろ],D,R,2,"１枚ドロー。
 エネルギーの最大値＋１。",3008,Defence,1,Draw,1,ManaBoost,1,,,,,,,,,,,,,,
 3009,禁断の悪夢,フォービドゥン・プレミアム,D,R,3,"相手のエネルギーの最大値ー１。
-エネルギーの最大値＋１。",3009,Defence,1,ManaReduceMaxOpponent,1,ManaBoost,1,,,,,,,,,,,,,,
+エネルギーの最大値＋１。",3009,Defence,1,ManaReduceOpponent,1,ManaBoost,1,,,,,,,,,,,,,,
 3010,ど派手な義賊・五右衛門,ハデハデシーフ・ごえもん,D,R,8,"自分のターンならエネルギーの最大値をー３。
 相手の手札をランダムに４枚捨てさせる。
 捨て札から２枚加える。
@@ -90,7 +90,7 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 自分のターンならターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
 3023,cmd:crd/sqc,コマンド：シード・スカーク,D,R,9,"自分のターンならエネルギーの最大値をー３。
 相手の手札を全て捨てさせる。
-自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn+K56,3,DiscardOpponent,ALL,RandomDiscardSelf,ALL,,,,,,,,,,,,
+自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn,3,RandomDiscardOpponent,ALL,SelectDiscardSelf,ALL,,,,,,,,,,,,
 4001,EX_001,ルール_001,E,R,0,"このカードを手札に加えたとき
 これと同名のカードが5枚あるなら
 自分はゲームに勝利する。",4001,EX_001,1,,,,,,,,,,,,,,,,,,

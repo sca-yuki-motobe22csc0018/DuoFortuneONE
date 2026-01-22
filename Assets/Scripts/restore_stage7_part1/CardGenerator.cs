@@ -47,7 +47,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectType4;
         public string effectType5;
         public string effectType6;
-        public string effectType7;
 
         public string effectValue1;
         public string effectValue2;
@@ -55,12 +54,12 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectValue4;
         public string effectValue5;
         public string effectValue6;
-        public string effectValue7;
     }
 
     [HideInInspector] public PlayerManager player;
     public DiscardManager discardManager;
     public bool skipAutoDiscard = false;
+    public bool isDefenceWindowUse = false; // ★ DEFENCEウインドウ経由で使われたか
 
     [Header("Target Area")]
     public Transform targetArea;
@@ -228,8 +227,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 effectValue5 = values.Length > 17 ? values[17] : "0",
                 effectType6 = values.Length > 18 ? values[18] : "",
                 effectValue6 = values.Length > 19 ? values[19] : "0",
-                effectType7 = values.Length > 20 ? values[20] : "",
-                effectValue7 = values.Length > 21 ? values[21] : "0",
             };
 
             cardList.Add(data);
@@ -485,7 +482,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             (myData.effectType4, myData.effectValue4),
             (myData.effectType5, myData.effectValue5),
             (myData.effectType6, myData.effectValue6),
-            (myData.effectType7, myData.effectValue7),
         };
 
         bool hasAttackEffect = false;
@@ -555,6 +551,9 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             case "Attack":
             case "Draw":
             case "ManaBoost":
+            case "ManaReduceSelf":
+            case "ManaReduceOpponent":
+            case "ManaReduceIfMyTurn":
             case "ManaRecover":
             case "LifeAdd":
             case "EndTurn":
@@ -562,7 +561,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             case "Defence":
                 return true;
             default:
-               return false;
+                return false;
         }
     }
 
@@ -585,6 +584,21 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             case "ManaBoost":
                 if (int.TryParse(value, out int boost))
                     yield return StartCoroutine(DoManaBoostRoutine(boost));
+                break;
+
+            case "ManaReduceSelf":
+                if (int.TryParse(value, out int reduceSelf))
+                    yield return StartCoroutine(DoManaReduceSelfRoutine(reduceSelf));
+                break;
+
+            case "ManaReduceOpponent":
+                if (int.TryParse(value, out int reduceOpp))
+                    yield return StartCoroutine(DoManaReduceOpponentRoutine(reduceOpp));
+                break;
+
+            case "ManaReduceIfMyTurn":
+                if (int.TryParse(value, out int reduceIfMyTurn))
+                    yield return StartCoroutine(DoManaReduceIfMyTurnRoutine(reduceIfMyTurn));
                 break;
 
             case "ManaRecover":
@@ -658,6 +672,11 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 }
 
 
+
+
+            case "Defence":
+                yield return StartCoroutine(DoDefenceRoutine());
+                break;
 
             default:
                 // 未対応でも必ず Next を出して止める
@@ -746,7 +765,69 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             player.UpdateOpponentUI();
         }
     }
+    void DoManaReduceSelf(int amount)
+    {
+        if (player == null || amount <= 0)
+            return;
 
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestEffectManaReduceSelf(runner.LocalPlayer, amount);
+        }
+        else
+        {
+            player.DecreaseMaxManaOnly(amount);
+            player.UpdateEnergyUI();
+            player.UpdateOpponentUI();
+        }
+    }
+
+    void DoManaReduceOpponent(int amount)
+    {
+        if (player == null || amount <= 0)
+            return;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestEffectManaReduceOpponent(runner.LocalPlayer, amount);
+        }
+        else
+        {
+            if (player.opponent != null)
+            {
+                player.opponent.DecreaseMaxManaOnly(amount);
+                player.UpdateEnergyUI();
+                player.UpdateOpponentUI();
+            }
+        }
+    }
+
+    void DoManaReduceIfMyTurn(int amount)
+    {
+        if (player == null || amount <= 0)
+            return;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestEffectManaReduceIfMyTurn(runner.LocalPlayer, amount);
+        }
+        else
+        {
+            // オフラインなど：自分のターン判定ができないのでそのまま適用
+            player.DecreaseMaxManaOnly(amount);
+            player.UpdateEnergyUI();
+            player.UpdateOpponentUI();
+        }
+    }
     void DoLifeAdd(int amount)
     {
         if (amount <= 0 || player == null)
@@ -787,6 +868,26 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         DoManaBoost(x);
         yield break;
     }
+    IEnumerator DoManaReduceSelfRoutine(int x)
+    {
+        yield return EffectProcessWindow.Instance.ShowProcess($"最大マナを {x} 減らします。");
+        DoManaReduceSelf(x);
+        yield break;
+    }
+
+    IEnumerator DoManaReduceOpponentRoutine(int x)
+    {
+        yield return EffectProcessWindow.Instance.ShowProcess($"相手の最大マナを {x} 減らします。");
+        DoManaReduceOpponent(x);
+        yield break;
+    }
+
+    IEnumerator DoManaReduceIfMyTurnRoutine(int x)
+    {
+        yield return EffectProcessWindow.Instance.ShowProcess($"自分のターンなら最大マナを {x} 減らします。");
+        DoManaReduceIfMyTurn(x);
+        yield break;
+    }
 
     private IEnumerator DoManaRecoverRoutine(int x)
     {
@@ -810,6 +911,117 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         DoLifeAdd(x);
         yield break;
     }
+
+
+    /// <summary>
+    /// DEFENCE効果：DEFENCEウインドウ経由の時だけ
+    /// ①ライフが0ならライフを1追加 → ②マナを2回復
+    /// </summary>
+    private IEnumerator DoDefenceRoutine()
+    {
+        // 手札から普通に使った場合は何もしない（次の効果へ）
+        if (!isDefenceWindowUse)
+            yield break;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        // ① ライフが0ならライフを1追加
+        if (EffectProcessWindow.Instance != null)
+            yield return EffectProcessWindow.Instance.ShowProcess("① ライフが0ならライフを1追加します。");
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestEffectDefenceLifeIfZero(runner.LocalPlayer);
+        }
+        else
+        {
+            // オフライン／保険としてローカル処理
+            if (player != null && player.lifeManager != null)
+            {
+                int lifeCount = GetLifeCountSafe(player);
+                if (lifeCount <= 0)
+                {
+                    player.lifeManager.AddLife();
+                }
+            }
+        }
+
+        // 少し待ってUI反映を安定させる
+        yield return new WaitForSeconds(0.2f);
+
+        // ② マナを2回復
+        if (EffectProcessWindow.Instance != null)
+            yield return EffectProcessWindow.Instance.ShowProcess("② マナを2回復します。");
+
+        if (gm != null && runner != null)
+        {
+            gm.RPC_RequestEffectManaRecover(runner.LocalPlayer, 2, false);
+        }
+        else if (player != null)
+        {
+            player.currentMana = Mathf.Min(player.maxMana, player.currentMana + 2);
+            player.UpdateEnergyUI();
+            player.UpdateOpponentUI();
+        }
+
+        yield break;
+    }
+
+    // ★ LifeManager の実装差異に強い「現在ライフ枚数」取得（オフライン保険用）
+    private int GetLifeCountSafe(PlayerManager pm)
+    {
+        if (pm == null || pm.lifeManager == null) return 0;
+
+        object lm = pm.lifeManager;
+
+        // よくあるプロパティ名
+        var t = lm.GetType();
+        var p1 = t.GetProperty("LifeCount");
+        if (p1 != null)
+        {
+            try { return (int)p1.GetValue(lm); } catch { }
+        }
+
+        var p2 = t.GetProperty("lifeCount");
+        if (p2 != null)
+        {
+            try { return (int)p2.GetValue(lm); } catch { }
+        }
+
+        // よくあるフィールド名（Listなど）
+        foreach (var fname in new[] { "lifeCards", "lifeList", "cards", "life" })
+        {
+            var f = t.GetField(fname);
+            if (f != null)
+            {
+                try
+                {
+                    var v = f.GetValue(lm);
+                    if (v is System.Collections.ICollection col) return col.Count;
+                }
+                catch { }
+            }
+        }
+
+        // 最後の手段：Count/Lengthを探す
+        foreach (var pname in new[] { "Count", "Length" })
+        {
+            var p = t.GetProperty(pname);
+            if (p != null)
+            {
+                try
+                {
+                    var v = p.GetValue(lm);
+                    if (v is int i) return i;
+                }
+                catch { }
+            }
+        }
+
+        return 0;
+    }
+
 
     private IEnumerator DoRecoverDiscardRoutine(int x)
     {

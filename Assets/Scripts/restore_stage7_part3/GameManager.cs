@@ -933,6 +933,91 @@ public class GameManager : NetworkBehaviour
         // Networked値が変わったので、全員のUIを補正
         UpdateAllManaUI();
     }
+    // Host 側のみ: 特定プレイヤーの最大マナを減らす（カード効果用）
+    public void EffectManaReduce(PlayerManager targetPlayer, int amount)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (targetPlayer == null) return;
+        if (amount <= 0) return;
+
+        targetPlayer.DecreaseMaxManaOnly(amount);
+
+        // Networked値が変わったので、全員のUIを補正
+        UpdateAllManaUI();
+    }
+    // 効果 ManaReduceSelf 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaReduceSelf(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        EffectManaReduce(players[playerIndex], amount);
+    }
+
+    // 効果 ManaReduceOpponent 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaReduceOpponent(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count < 2) return;
+
+        int attackerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                attackerIndex = i;
+                break;
+            }
+        }
+
+        if (attackerIndex < 0) return;
+
+        int defenderIndex = (attackerIndex == 0) ? 1 : 0;
+
+        EffectManaReduce(players[defenderIndex], amount);
+    }
+
+    // 効果 ManaReduceIfMyTurn 用リクエスト（Client → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectManaReduceIfMyTurn(PlayerRef requester, int amount)
+    {
+        if (amount <= 0) return;
+        if (players == null || players.Count == 0) return;
+
+        int playerIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == requester)
+            {
+                playerIndex = i;
+                break;
+            }
+        }
+
+        if (playerIndex < 0) return;
+
+        // 自分のターンじゃないなら何もしない
+        if (playerIndex != currentPlayerIndex) return;
+
+        EffectManaReduce(players[playerIndex], amount);
+    }
 
     // Host 側のみ: 特定プレイヤーのマナ回復。isAll=true の場合は全回復。
     public void EffectManaRecover(PlayerManager targetPlayer, int amount, bool isAll)
@@ -998,6 +1083,82 @@ public class GameManager : NetworkBehaviour
 
         EffectManaRecover(players[playerIndex], amount, isAll);
     }
+
+
+    // ============================
+    // DEFENCE効果専用（Host中心）
+    // 「ライフが0ならライフを1追加」を Host が判定して実行
+    // ============================
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEffectDefenceLifeIfZero(PlayerRef targetRef)
+    {
+        if (!Object.HasStateAuthority) return;
+
+        int idx = FindPlayerIndexByRef(targetRef);
+        if (idx < 0 || players == null || idx >= players.Count) return;
+
+        var targetPlayer = players[idx];
+        if (targetPlayer == null || targetPlayer.lifeManager == null) return;
+
+        int lifeCount = GetLifeCountSafe(targetPlayer);
+        if (lifeCount <= 0)
+        {
+            // Host 側で山札からライフカードを引き → 全員に同期
+            AddLifeToPlayer(targetPlayer, 1);
+        }
+    }
+
+    // ★ LifeManager の実装差異に強い「現在ライフ枚数」取得（Host判定用）
+    private int GetLifeCountSafe(PlayerManager pm)
+    {
+        if (pm == null || pm.lifeManager == null) return 0;
+
+        object lm = pm.lifeManager;
+        var t = lm.GetType();
+
+        var p1 = t.GetProperty("LifeCount");
+        if (p1 != null)
+        {
+            try { return (int)p1.GetValue(lm); } catch { }
+        }
+
+        var p2 = t.GetProperty("lifeCount");
+        if (p2 != null)
+        {
+            try { return (int)p2.GetValue(lm); } catch { }
+        }
+
+        foreach (var fname in new[] { "lifeCards", "lifeList", "cards", "life" })
+        {
+            var f = t.GetField(fname);
+            if (f != null)
+            {
+                try
+                {
+                    var v = f.GetValue(lm);
+                    if (v is System.Collections.ICollection col) return col.Count;
+                }
+                catch { }
+            }
+        }
+
+        foreach (var pname in new[] { "Count", "Length" })
+        {
+            var p = t.GetProperty(pname);
+            if (p != null)
+            {
+                try
+                {
+                    var v = p.GetValue(lm);
+                    if (v is int i) return i;
+                }
+                catch { }
+            }
+        }
+
+        return 0;
+    }
+
 
     // ★★★ 追加：カードのコスト支払い用（Client → Host） ★★★
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
