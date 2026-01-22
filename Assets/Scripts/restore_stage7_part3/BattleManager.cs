@@ -1,7 +1,7 @@
+using Fusion;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Fusion;
 
 public class BattleManager : MonoBehaviour
 {
@@ -15,33 +15,39 @@ public class BattleManager : MonoBehaviour
     private bool receivedUseDefence = false;
     private PlayerRef expectedDefenceDefenderRef;
 
-    
 
-    // ★ 追加：攻撃を直列処理するためのキュー
+
     private struct AttackJob
     {
         public PlayerManager attacker;
         public PlayerManager defender;
         public CardGenerator.CardData attackCard;
 
-        public AttackJob(PlayerManager a, PlayerManager d, CardGenerator.CardData c)
+        // ★追加
+        public PlayerRef attackerRef;
+        public int requestId;
+
+        public AttackJob(PlayerManager a, PlayerManager d, CardGenerator.CardData c, PlayerRef ar, int rid)
         {
             attacker = a;
             defender = d;
             attackCard = c;
+            attackerRef = ar;
+            requestId = rid;
         }
     }
+
 
     private readonly Queue<AttackJob> attackQueue = new Queue<AttackJob>();
     private bool isProcessingAttackQueue = false;
 
     // ★ 追加：Hostだけが攻撃を積む
-    public void EnqueueAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard)
+    public void EnqueueAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard, PlayerRef attackerRef, int requestId)
     {
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         if (gm == null || !gm.Object.HasStateAuthority) return;
 
-        attackQueue.Enqueue(new AttackJob(attacker, defender, attackCard));
+        attackQueue.Enqueue(new AttackJob(attacker, defender, attackCard, attackerRef, requestId));
 
         if (!isProcessingAttackQueue)
         {
@@ -57,7 +63,7 @@ public class BattleManager : MonoBehaviour
         while (attackQueue.Count > 0)
         {
             AttackJob job = attackQueue.Dequeue();
-            yield return StartCoroutine(HandleAttack(job.attacker, job.defender, job.attackCard));
+            yield return StartCoroutine(HandleAttack(job.attacker, job.defender, job.attackCard, job.attackerRef, job.requestId));
             yield return null;
         }
 
@@ -102,7 +108,7 @@ public class BattleManager : MonoBehaviour
     /// <summary>
     /// 攻撃のフローを“全部”ここで統括する（ShowProcess：Nextボタン待ち対応）
     /// </summary>
-    public IEnumerator HandleAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard)
+    public IEnumerator HandleAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard, PlayerRef attackerRef, int requestId)
     {
         // ★ 追加：Host 以外では戦闘処理をしない
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
@@ -239,6 +245,12 @@ public class BattleManager : MonoBehaviour
             yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃完了。", 1.0f, false));
         else
             yield return new WaitForSeconds(1.0f);
+
+        // ★追加：攻撃完了通知（Host -> 全員）
+        if (gm != null)
+        {
+            gm.RPC_AttackResolved(attackerRef, requestId);
+        }
     }
 
     int counterAttackCardId = -1;
@@ -372,9 +384,14 @@ public class BattleManager : MonoBehaviour
                 var cd = gm.deckManager.GetCardDataById(counterAttackCardId);
                 if (cd != null) counterCard = cd;
             }
-
             if (counterDefender != null)
-                yield return StartCoroutine(HandleAttack(counterAttacker, counterDefender, counterCard));
+                yield return StartCoroutine(HandleAttack(
+    counterAttacker,
+    counterDefender,
+    counterCard,
+    counterAttacker.Object.InputAuthority,
+    -1
+));
         }
 
 

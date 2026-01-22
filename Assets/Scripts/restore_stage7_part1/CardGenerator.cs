@@ -500,25 +500,21 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
             bool isAuto = IsAutoEffect(e.type);
 
-            if (processWindow != null && !hasAttackEffect)
-                processWindow.ShowMessage($"効果実行中: {e.type} ({e.value})");
+            if (processWindow != null)
+            {
+                // ★Attackカードでも表示する（Attackも待てるようにしたため）
+                yield return StartCoroutine(processWindow.ShowProcessAuto($"効果実行中: {e.type} ({e.value})", 0.6f, false));
+            }
 
-            // 効果実行（コルーチン）
             yield return StartCoroutine(ApplyEffect(e.type, e.value));
 
-            if (isAuto)
-            {
-                yield return new WaitForSeconds(0.6f);
-            }
-            else
-            {
-                // 未対応や手動操作でも、必ず続ける
-                yield return new WaitForSeconds(0.1f);
-            }
+            // 自動効果は少し間を空ける
+            if (isAuto) yield return new WaitForSeconds(0.6f);
+            else yield return new WaitForSeconds(0.1f);
         }
 
-        if (processWindow != null && !hasAttackEffect)
-            processWindow.ShowMessage("効果処理完了！");
+        if (processWindow != null)
+            yield return StartCoroutine(processWindow.ShowProcessAuto("効果処理完了！", 0.6f, false));
 
         yield return new WaitForSeconds(0.4f);
 
@@ -680,8 +676,8 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
             default:
                 // 未対応でも必ず Next を出して止める
-                yield return EffectProcessWindow.Instance.ShowProcess(
-                    $"未対応の効果: {type} はまだ実装されていません。"
+                yield return EffectProcessWindow.Instance.ShowProcessAuto(
+                    $"未対応の効果: {type} はまだ実装されていません。", 0.6f, false
                 );
                 break;
         }
@@ -857,34 +853,34 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     private IEnumerator DoDrawRoutine(int n)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"カードを {n} 枚引きます。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"カードを {n} 枚引きます。", 0.6f, false);
         DoDraw(n);         // ★ 中身がネット対応になった
         yield break;
     }
 
     private IEnumerator DoManaBoostRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"最大マナを {x} 増やします。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"最大マナを {x} 増やします。", 0.6f, false);
         DoManaBoost(x);
         yield break;
     }
     IEnumerator DoManaReduceSelfRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"最大マナを {x} 減らします。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"最大マナを {x} 減らします。", 0.6f, false);
         DoManaReduceSelf(x);
         yield break;
     }
 
     IEnumerator DoManaReduceOpponentRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"相手の最大マナを {x} 減らします。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"相手の最大マナを {x} 減らします。", 0.6f, false);
         DoManaReduceOpponent(x);
         yield break;
     }
 
     IEnumerator DoManaReduceIfMyTurnRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"自分のターンなら最大マナを {x} 減らします。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"自分のターンなら最大マナを {x} 減らします。", 0.6f, false);
         DoManaReduceIfMyTurn(x);
         yield break;
     }
@@ -894,11 +890,11 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         if (x < 0)
         {
             // ALL の場合
-            yield return EffectProcessWindow.Instance.ShowProcess("マナを全回復します。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto("マナを全回復します。", 0.6f, false);
         }
         else
         {
-            yield return EffectProcessWindow.Instance.ShowProcess($"マナを {x} 回復します。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto($"マナを {x} 回復します。", 0.6f, false);
         }
 
         DoManaRecover(x);
@@ -907,7 +903,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     private IEnumerator DoLifeAddRoutine(int x)
     {
-        yield return EffectProcessWindow.Instance.ShowProcess($"ライフを {x} 増やします。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"ライフを {x} 増やします。", 0.6f, false);
         DoLifeAdd(x);
         yield break;
     }
@@ -928,7 +924,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         // ① ライフが0ならライフを1追加
         if (EffectProcessWindow.Instance != null)
-            yield return EffectProcessWindow.Instance.ShowProcess("① ライフが0ならライフを1追加します。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto("① ライフが0ならライフを1追加します。", 0.6f, false);
 
         if (gm != null && runner != null)
         {
@@ -952,7 +948,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
         // ② マナを2回復
         if (EffectProcessWindow.Instance != null)
-            yield return EffectProcessWindow.Instance.ShowProcess("② マナを2回復します。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto("② マナを2回復します。", 0.6f, false);
 
         if (gm != null && runner != null)
         {
@@ -1032,7 +1028,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
 
         // メッセージを表示
-        yield return EffectProcessWindow.Instance.ShowProcess($"捨て札から {x} 枚回収します。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto($"捨て札から {x} 枚回収します。", 0.6f, false);
 
         // 回収モード開始
         discard.StartRecoverMode(player, x);
@@ -1046,28 +1042,40 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
     private IEnumerator DoEndTurnRoutine()
     {
-        yield return EffectProcessWindow.Instance.ShowProcess("ターンを終了します。");
+        yield return EffectProcessWindow.Instance.ShowProcessAuto("ターンを終了します。", 0.6f, false);
         DoEndTurn();
         yield break;
     }
 
-    IEnumerator DoAttack()
+    private IEnumerator DoAttack()
     {
-        var gm = FindAnyObjectByType<GameManager>();
-        if (gm == null) yield break;
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var r = FindAnyObjectByType<NetworkRunner>();
+        if (gm == null || r == null) yield break;
 
-        // 攻撃対象は仮で player2（または逆）
-        PlayerManager attacker = player;
-        PlayerManager defender =
-            (gm.players[0] == player) ? gm.players[1] : gm.players[0];
+        int requestId = NextAttackRequestId();
+        s_resolvedAttack.Remove(requestId);
 
-        var runner = FindAnyObjectByType<NetworkRunner>();
-        if (runner == null) yield break;
+        // ★ HostでもClientでも同じ：StateAuthorityに攻撃を依頼
+        gm.RPC_RequestAttack(r.LocalPlayer, myData.id, requestId);
 
-        // Host に「攻撃開始」を依頼（カードIDだけ送る）
-        gm.RPC_RequestAttack(runner.LocalPlayer, cardID);
+        while (!s_resolvedAttack.Contains(requestId))
+            yield return null;
 
-        yield break;
+        s_resolvedAttack.Remove(requestId);
+    }
+    private static int s_attackRequestId = 0;
+    private static readonly HashSet<int> s_resolvedAttack = new HashSet<int>();
+
+    public static void NotifyAttackResolved(int requestId)
+    {
+        s_resolvedAttack.Add(requestId);
+    }
+
+    private static int NextAttackRequestId()
+    {
+        s_attackRequestId++;
+        return s_attackRequestId;
     }
     private IEnumerator DoSelectDiscardSelfRoutine(int count)
     {
@@ -1075,9 +1083,9 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         if (ui == null) yield break;
 
         if (count < 0)
-            yield return EffectProcessWindow.Instance.ShowProcess("手札を全て捨てます。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto("手札を全て捨てます。", 0.6f, false);
         else
-            yield return EffectProcessWindow.Instance.ShowProcess($"手札から {count} 枚捨てます。");
+            yield return EffectProcessWindow.Instance.ShowProcessAuto($"手札から {count} 枚捨てます。", 0.6f, false);
 
         ui.StartSelectDiscardMode(player, count);
 

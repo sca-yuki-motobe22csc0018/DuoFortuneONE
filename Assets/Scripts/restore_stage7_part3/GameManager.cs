@@ -175,8 +175,9 @@ public class GameManager : NetworkBehaviour
             if (turnChoicePanel != null) turnChoicePanel.SetActive(true);
             if (endTurnButton != null) endTurnButton.interactable = true;
 
+            // 変更後（Next待ちしない）
             if (effectWindow != null)
-                StartCoroutine(effectWindow.ShowProcess("あなたのターン"));
+                StartCoroutine(effectWindow.ShowProcessAuto("あなたのターン", 0.8f, false));
         }
         else
         {
@@ -761,7 +762,7 @@ public class GameManager : NetworkBehaviour
     // ============================================================
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestAttack(PlayerRef attackerRef, int attackCardId)
+    public void RPC_RequestAttack(PlayerRef attackerRef, int attackCardId, int requestId)
     {
         if (battleManager == null || deckManager == null) return;
         if (players == null || players.Count < 2) return;
@@ -782,8 +783,21 @@ public class GameManager : NetworkBehaviour
 
         if (battleManager != null)
         {
-            battleManager.EnqueueAttack(attacker, defender, attackData);
+            // ★ requestId を一緒に渡す
+            battleManager.EnqueueAttack(attacker, defender, attackData, attackerRef, requestId);
         }
+    }
+    // ★ Attack完了通知：Host -> 全員
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_AttackResolved(PlayerRef attackerRef, int requestId)
+    {
+        // attacker本人の端末だけが、このrequestIdを完了として受け取ればOK
+        if (runner == null) runner = FindAnyObjectByType<NetworkRunner>();
+        if (runner == null) return;
+
+        if (runner.LocalPlayer != attackerRef) return;
+
+        CardGenerator.NotifyAttackResolved(requestId);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
