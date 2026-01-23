@@ -43,8 +43,12 @@ public class DeckEditorUI : MonoBehaviour
         maxCostDropdown.onValueChanged.AddListener(_ => RefreshCardList());
         typeDropdown.onValueChanged.AddListener(_ => RefreshCardList());
 
-        // 🔑 Enterキーで検索
-        nameSearchField.onSubmit.AddListener(_ => RefreshCardList());
+        // 🔑 Enterキーで検索（入力保持）
+        nameSearchField.onSubmit.AddListener(_ =>
+        {
+            RefreshCardList();
+            nameSearchField.ActivateInputField();
+        });
     }
 
     //-------------------------------------------------------
@@ -93,7 +97,8 @@ public class DeckEditorUI : MonoBehaviour
         foreach (Transform t in cardListParent)
             Destroy(t.gameObject);
 
-        string keyword = nameSearchField.text;
+        // 🔍 検索キーワード正規化
+        string keyword = nameSearchField.text.Trim().ToLower();
 
         // --- 最小コスト ---
         int minCost = int.MinValue;
@@ -119,19 +124,24 @@ public class DeckEditorUI : MonoBehaviour
             // -----------------------------
             if (!string.IsNullOrEmpty(keyword))
             {
-                bool matchName = card.name.Contains(keyword);
+                string cardName = card.name?.ToLower() ?? "";
+                string cardRuby = card.ruby?.ToLower() ?? "";
 
-                // ※ card.ruby は実際の変数名に合わせて変更
-                bool matchRuby = !string.IsNullOrEmpty(card.ruby) &&
-                                 card.ruby.Contains(keyword);
+                bool match =
+                    cardName.Contains(keyword) ||
+                    cardRuby.Contains(keyword);
 
-                if (!matchName && !matchRuby)
+                if (!match)
                     continue;
             }
 
+            // コスト
             if (card.cost < minCost) continue;
             if (card.cost > maxCost) continue;
-            if (useTypeFilter && card.type != typeCode) continue;
+
+            // タイプ
+            if (useTypeFilter && card.type != typeCode)
+                continue;
 
             var obj = Instantiate(listItemPrefab, cardListParent);
             obj.GetComponent<CardDisplayImageOnly>().SetCard(card, this);
@@ -174,7 +184,7 @@ public class DeckEditorUI : MonoBehaviour
     }
 
     //-------------------------------------------------------
-    // 追加 / 削除（省略なし）
+    // 追加 / 削除
     //-------------------------------------------------------
     public void AddCardToDeck(CardInfo card)
     {
@@ -191,6 +201,7 @@ public class DeckEditorUI : MonoBehaviour
             return;
         }
 
+        // Type E 制限
         if (card.type == "E")
         {
             foreach (var num in currentDeck)
@@ -227,8 +238,10 @@ public class DeckEditorUI : MonoBehaviour
             return;
         }
 
-        DeckSaveManager.Instance.SetDeck(deckIndex,
-            new DeckData { cardNumbers = new List<string>(currentDeck) });
+        DeckSaveManager.Instance.SetDeck(
+            deckIndex,
+            new DeckData { cardNumbers = new List<string>(currentDeck) }
+        );
 
         deckCountText.text = $"デッキ{deckIndex + 1}をSAVEしました";
     }
