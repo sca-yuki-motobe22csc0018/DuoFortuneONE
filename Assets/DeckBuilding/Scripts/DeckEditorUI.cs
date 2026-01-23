@@ -37,11 +37,14 @@ public class DeckEditorUI : MonoBehaviour
         // デッキ切り替え
         deckSelectDropdown.onValueChanged.AddListener(_ => OnDeckChanged());
 
-        // 🔍 検索条件変更で即更新
+        // 🔍 入力時リアルタイム検索
         nameSearchField.onValueChanged.AddListener(_ => RefreshCardList());
         minCostDropdown.onValueChanged.AddListener(_ => RefreshCardList());
         maxCostDropdown.onValueChanged.AddListener(_ => RefreshCardList());
         typeDropdown.onValueChanged.AddListener(_ => RefreshCardList());
+
+        // 🔑 Enterキーで検索
+        nameSearchField.onSubmit.AddListener(_ => RefreshCardList());
     }
 
     //-------------------------------------------------------
@@ -68,6 +71,21 @@ public class DeckEditorUI : MonoBehaviour
     }
 
     //-------------------------------------------------------
+    // 表示用タイプ → CSV用コード変換
+    //-------------------------------------------------------
+    string ConvertTypeLabelToCode(string label)
+    {
+        switch (label)
+        {
+            case "Attack": return "A";
+            case "Block": return "B";
+            case "Defense": return "D";
+            case "EX": return "E";
+            default: return null; // All
+        }
+    }
+
+    //-------------------------------------------------------
     // 右側：カード一覧（検索）
     //-------------------------------------------------------
     void RefreshCardList()
@@ -75,7 +93,7 @@ public class DeckEditorUI : MonoBehaviour
         foreach (Transform t in cardListParent)
             Destroy(t.gameObject);
 
-        string nameKeyword = nameSearchField.text;
+        string keyword = nameSearchField.text;
 
         // --- 最小コスト ---
         int minCost = int.MinValue;
@@ -90,27 +108,30 @@ public class DeckEditorUI : MonoBehaviour
             int.TryParse(maxText, out maxCost);
 
         // --- タイプ ---
-        string selectedType = typeDropdown.options[typeDropdown.value].text;
-        bool useTypeFilter = selectedType != "All";
+        string typeLabel = typeDropdown.options[typeDropdown.value].text;
+        string typeCode = ConvertTypeLabelToCode(typeLabel);
+        bool useTypeFilter = !string.IsNullOrEmpty(typeCode);
 
         foreach (var card in CardDatabase.Instance.cards)
         {
-            // 名前
-            if (!string.IsNullOrEmpty(nameKeyword) &&
-                !card.name.Contains(nameKeyword))
-                continue;
+            // -----------------------------
+            // 名前 or ふりがな検索
+            // -----------------------------
+            if (!string.IsNullOrEmpty(keyword))
+            {
+                bool matchName = card.name.Contains(keyword);
 
-            // 最小コスト
-            if (card.cost < minCost)
-                continue;
+                // ※ card.ruby は実際の変数名に合わせて変更
+                bool matchRuby = !string.IsNullOrEmpty(card.ruby) &&
+                                 card.ruby.Contains(keyword);
 
-            // 最大コスト
-            if (card.cost > maxCost)
-                continue;
+                if (!matchName && !matchRuby)
+                    continue;
+            }
 
-            // タイプ
-            if (useTypeFilter && card.type != selectedType)
-                continue;
+            if (card.cost < minCost) continue;
+            if (card.cost > maxCost) continue;
+            if (useTypeFilter && card.type != typeCode) continue;
 
             var obj = Instantiate(listItemPrefab, cardListParent);
             obj.GetComponent<CardDisplayImageOnly>().SetCard(card, this);
@@ -153,52 +174,39 @@ public class DeckEditorUI : MonoBehaviour
     }
 
     //-------------------------------------------------------
-    // 追加 / 削除
+    // 追加 / 削除（省略なし）
     //-------------------------------------------------------
     public void AddCardToDeck(CardInfo card)
     {
-        // 30枚制限
         if (currentDeck.Count >= 30)
         {
             deckCountText.text = "デッキは30枚までです";
             return;
         }
 
-        // 同名2枚制限（全カード共通）
-        int sameCardCount = currentDeck.FindAll(x => x == card.number).Count;
-        if (sameCardCount >= 2)
+        int sameCount = currentDeck.FindAll(x => x == card.number).Count;
+        if (sameCount >= 2)
         {
             deckCountText.text = "同じカードは2枚までです";
             return;
         }
 
-        // -----------------------------
-        // Type E 特別ルール
-        // -----------------------------
         if (card.type == "E")
         {
             foreach (var num in currentDeck)
             {
                 var info = CardDatabase.Instance.GetCard(num);
-                if (info == null) continue;
-
-                // すでに別種類の Type E が入っている
                 if (info.type == "E" && info.number != card.number)
                 {
-                    deckCountText.text = "ほかのType E のカードは入れられません";
+                    deckCountText.text = "ほかのType Eのカードは入れられません";
                     return;
                 }
             }
         }
 
-        // 追加成功
         currentDeck.Add(card.number);
         RefreshDeckDisplay();
-
-        deckCountText.text = $"現在のデッキ枚数 {currentDeck.Count}/30";
     }
-
-
 
     public void RemoveCardFromDeck(CardInfo card)
     {
@@ -207,7 +215,7 @@ public class DeckEditorUI : MonoBehaviour
     }
 
     //-------------------------------------------------------
-    // 保存
+    // 保存 / リセット / 戻る
     //-------------------------------------------------------
     public void OnSaveButton()
     {
@@ -219,32 +227,20 @@ public class DeckEditorUI : MonoBehaviour
             return;
         }
 
-        DeckData data = new DeckData
-        {
-            cardNumbers = new List<string>(currentDeck)
-        };
-
-        DeckSaveManager.Instance.SetDeck(deckIndex, data);
+        DeckSaveManager.Instance.SetDeck(deckIndex,
+            new DeckData { cardNumbers = new List<string>(currentDeck) });
 
         deckCountText.text = $"デッキ{deckIndex + 1}をSAVEしました";
     }
 
-    //-------------------------------------------------------
-    // リセット
-    //-------------------------------------------------------
     public void OnResetButton()
     {
-        currentDeck.Clear();
         int deckIndex = deckSelectDropdown.value;
+        currentDeck.Clear();
         DeckSaveManager.Instance.ClearDeck(deckIndex);
-        LoadDeckFromSave();
         RefreshDeckDisplay();
-        deckCountText.text = $"デッキ{deckIndex + 1}をResetしました";
     }
 
-    //-------------------------------------------------------
-    // 戻る
-    //-------------------------------------------------------
     public void OnCloseButton()
     {
         UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
