@@ -58,6 +58,15 @@ public class GameManager : NetworkBehaviour
     private int _prevPlayerIndex = -1;
     private int turnNumber = 1;
 
+    // ============================================================
+    //  Processing Card Bar (Host authoritative)
+    // ============================================================
+    private int _nextProcessingId = 0;
+
+    // (PlayerRef, localToken) -> processId
+    private readonly Dictionary<(PlayerRef, int), int> _processingTokenMap = new Dictionary<(PlayerRef, int), int>();
+
+
     private NetworkRunner runner;
 
     // ============================================================
@@ -508,6 +517,68 @@ public class GameManager : NetworkBehaviour
         AddLifeToPlayer(players[playerIndex], amount);
     }
 
+    public int BeginProcessingCardHost(int cardId)
+    {
+        if (!Object.HasStateAuthority) return -1;
+
+        _nextProcessingId++;
+        int pid = _nextProcessingId;
+
+        RPC_AddProcessingCard(pid, cardId);
+        return pid;
+    }
+
+    public void EndProcessingCardHost(int processId)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (processId < 0) return;
+
+        RPC_RemoveProcessingCard(processId);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestBeginProcessingCard(PlayerRef requester, int localToken, int cardId)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (localToken == 0) return;
+        if (cardId <= 0) return;
+
+        var key = (requester, localToken);
+        if (_processingTokenMap.ContainsKey(key)) return;
+
+        _nextProcessingId++;
+        int pid = _nextProcessingId;
+
+        _processingTokenMap[key] = pid;
+        RPC_AddProcessingCard(pid, cardId);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEndProcessingCard(PlayerRef requester, int localToken)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (localToken == 0) return;
+
+        var key = (requester, localToken);
+        if (!_processingTokenMap.TryGetValue(key, out int pid)) return;
+
+        _processingTokenMap.Remove(key);
+        RPC_RemoveProcessingCard(pid);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_AddProcessingCard(int processId, int cardId)
+    {
+        if (ProcessingCardBar.Instance != null)
+            ProcessingCardBar.Instance.AddProcessingCard(processId, cardId);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_RemoveProcessingCard(int processId)
+    {
+        if (ProcessingCardBar.Instance != null)
+            ProcessingCardBar.Instance.RemoveProcessingCard(processId);
+    }
 
 
     // ============================================================

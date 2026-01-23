@@ -47,6 +47,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectType4;
         public string effectType5;
         public string effectType6;
+        public string effectType7;
 
         public string effectValue1;
         public string effectValue2;
@@ -54,6 +55,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         public string effectValue4;
         public string effectValue5;
         public string effectValue6;
+        public string effectValue7;
     }
 
     [HideInInspector] public PlayerManager player;
@@ -75,6 +77,10 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     private Vector3 originalLocalScale;
 
     private Transform dragRoot;
+
+    private static int s_localProcessingTokenSeed = 0;
+    private int _myProcessingToken = 0;
+
 
     void Start()
     {
@@ -227,6 +233,8 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 effectValue5 = values.Length > 17 ? values[17] : "0",
                 effectType6 = values.Length > 18 ? values[18] : "",
                 effectValue6 = values.Length > 19 ? values[19] : "0",
+                effectType7 = values.Length > 20 ? values[20] : "",
+                effectValue7 = values.Length > 21 ? values[21] : "0",
             };
 
             cardList.Add(data);
@@ -488,12 +496,23 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         foreach (var c in cols3D) c.enabled = false;
     }
 
+
+
     private IEnumerator EffectSequenceCoroutine()
     {
         var processWindow = FindAnyObjectByType<EffectProcessWindow>();
         var gmLock = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
 
         // 手札カード使用ロック解除は必ず最後に行う（途中return/Destroy対策）
+        // ▼追加：処理中カードの表示（手札/DefenceWindow経由のCardGenerator）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var r = FindAnyObjectByType<NetworkRunner>();
+        if (gm != null && r != null && myData != null)
+        {
+            _myProcessingToken = ++s_localProcessingTokenSeed;
+            gm.RPC_RequestBeginProcessingCard(r.LocalPlayer, _myProcessingToken, myData.id);
+        }
+
         try
         {
             var effects = new List<(string type, string value)>()
@@ -504,6 +523,7 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             (myData.effectType4, myData.effectValue4),
             (myData.effectType5, myData.effectValue5),
             (myData.effectType6, myData.effectValue6),
+            (myData.effectType7, myData.effectValue7),
         };
 
             bool hasAttackEffect = false;
@@ -540,8 +560,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
 
             if (!skipAutoDiscard && myData != null && myData.type != "B" && myData.type != "BLOCK")
             {
-                var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
-                var r = FindAnyObjectByType<NetworkRunner>();
 
                 if (gm != null && r != null)
                 {
@@ -558,6 +576,15 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
         finally
         {
+            // ▼追加：処理中カードの表示を消す
+            var gm2 = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+            var r2 = FindAnyObjectByType<NetworkRunner>();
+            if (gm2 != null && r2 != null && _myProcessingToken != 0)
+            {
+                gm2.RPC_RequestEndProcessingCard(r2.LocalPlayer, _myProcessingToken);
+                _myProcessingToken = 0;
+            }
+
             if (gmLock != null) gmLock.SetHandCardUseLocked(false);
         }
     }

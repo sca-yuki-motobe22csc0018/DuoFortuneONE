@@ -154,37 +154,73 @@ public class BattleManager : MonoBehaviour
 
         if (hasPlayableBlock && blockData != null)
         {
-            if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"相手は Block を使用します。【{blockData.name}】", 1.0f, false));
-            else
-                yield return new WaitForSeconds(1.0f);
+            int processingBlockId = -1;
+            bool attackWasNegated = false;
 
-            // マナ支払い
-            if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
+            // ▼追加：processingBlockId は finally で必ず消す
+            try
             {
-                defender.UpdateEnergyUI();
-
-                // Block効果処理
-                bool attackNegated = false;
-                yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
-
-
-
-                if (attackNegated)
+                if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
                 {
-                    if (EffectProcessWindow.Instance != null)
-                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃は Block により無効化されました。", 1.0f, false));
-                    else
-                        yield return new WaitForSeconds(1.0f);
-                    yield break;
+                    processingBlockId = gm.BeginProcessingCardHost(blockData.id);
                 }
-            }
-            else
-            {
+
                 if (EffectProcessWindow.Instance != null)
-                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("Blockカードを使用できません。", 1.0f, false));
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"相手は Block を使用します。【{blockData.name}】", 1.0f, false));
                 else
                     yield return new WaitForSeconds(1.0f);
+
+                // マナ支払い
+                if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
+                {
+                    defender.UpdateEnergyUI();
+
+                    // Block効果処理
+                    bool attackNegated = false;
+                    yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
+
+                    if (attackNegated)
+                    {
+                        attackWasNegated = true;
+
+                        if (EffectProcessWindow.Instance != null)
+                            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃は Block により無効化されました。", 1.0f, false));
+                        else
+                            yield return new WaitForSeconds(1.0f);
+
+                        // ★ここで return/yield break はしない（後段で完了通知を送る）
+                    }
+                }
+                else
+                {
+                    if (EffectProcessWindow.Instance != null)
+                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("Blockカードを使用できません。", 1.0f, false));
+                    else
+                        yield return new WaitForSeconds(1.0f);
+                }
+            }
+            finally
+            {
+                // ▼追加：Block表示は必ず消す
+                if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
+                {
+                    gm.EndProcessingCardHost(processingBlockId);
+                }
+            }
+
+            // ▼追加：Blockで無効化されたなら「攻撃終了」＋「完了通知」を送って終了
+            if (attackWasNegated)
+            {
+                if (EffectProcessWindow.Instance != null)
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃完了（Blockで無効化）。", 1.0f, false));
+                else
+                    yield return new WaitForSeconds(1.0f);
+
+                if (gm != null)
+                {
+                    gm.RPC_AttackResolved(attackerRef, requestId);
+                }
+                yield break;
             }
         }
         else
@@ -257,6 +293,7 @@ public class BattleManager : MonoBehaviour
         {
             gm.RPC_AttackResolved(attackerRef, requestId);
         }
+
     }
 
     int counterAttackCardId = -1;
@@ -275,11 +312,11 @@ public class BattleManager : MonoBehaviour
 
         string[] types = {
             blockCard.effectType1, blockCard.effectType2, blockCard.effectType3,
-            blockCard.effectType4, blockCard.effectType5, blockCard.effectType6
+            blockCard.effectType4, blockCard.effectType5, blockCard.effectType6, blockCard.effectType7
         };
         string[] values = {
             blockCard.effectValue1, blockCard.effectValue2, blockCard.effectValue3,
-            blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6
+            blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6, blockCard.effectType7
         };
 
         bool hasAttack = false;
@@ -375,7 +412,10 @@ public class BattleManager : MonoBehaviour
         // BlockカードがAttack効果を持つ場合 → 反撃
         if (hasCounterAttack)
         {
-            yield return EffectProcessWindow.Instance.ShowProcess($"{blockCard.name} の反撃効果を発動！");
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"{blockCard.name} の反撃効果を発動！", 1.0f, false));
+            else
+                yield return new WaitForSeconds(1.0f);
 
             // 反撃は「Blockした側(defender) → 攻撃してきた側(attacker)」に固定
             PlayerManager counterAttacker = defender;
