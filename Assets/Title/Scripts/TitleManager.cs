@@ -1,11 +1,12 @@
 ﻿using DG.Tweening;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class TitleManager : MonoBehaviour
 {
-    [SerializeField] Text clickStart;
-    [SerializeField] Text title;
+    [SerializeField] TextMeshProUGUI clickStart;
+    [SerializeField] Image title;
 
     public Image frontImage;
     public Image backImage;
