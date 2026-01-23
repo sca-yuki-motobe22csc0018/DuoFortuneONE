@@ -239,6 +239,12 @@ public class BattleManager : MonoBehaviour
             while (defenceWaiting)
                 yield return null;
         }
+        // ▼追加：Attackの処理がすべて終わったタイミングでライフ0なら勝敗決定
+        if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
+        {
+            if (gm.TryEndGameByLifeZeroAfterAttack(attacker, defender))
+                yield break; // 勝敗がついたら以降の表示/処理は打ち切り
+        }
 
         // ⑤ 攻撃終了
         if (EffectProcessWindow.Instance != null)

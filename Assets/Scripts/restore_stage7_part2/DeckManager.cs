@@ -15,6 +15,14 @@ public class DeckManager : MonoBehaviour
 
     private Stack<int> deckStack = new Stack<int>();
 
+    // ▼追加：山札の残り枚数
+    public int GetRemainingCount()
+    {
+        return deckStack != null ? deckStack.Count : 0;
+    }
+
+
+
     // ★ 追加: カードID -> CardData のデータベース（Card_Data.csv を読み込む）
     private Dictionary<int, CardGenerator.CardData> cardDatabase = new Dictionary<int, CardGenerator.CardData>();
 
@@ -164,10 +172,10 @@ public class DeckManager : MonoBehaviour
     {
         cardDatabase.Clear();
 
-        string path = Path.Combine(Application.streamingAssetsPath, "Card_Data.csv");
+        string path = Path.Combine(Application.streamingAssetsPath, "Card_Data_Beta.csv");
         if (!File.Exists(path))
         {
-            Debug.LogWarning($"Card_Data.csv not found: {path}");
+            Debug.LogWarning($"Card_Data_Beta.csv not found: {path}");
             return;
         }
 

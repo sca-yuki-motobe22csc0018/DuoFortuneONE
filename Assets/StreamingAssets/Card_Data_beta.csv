@@ -90,7 +90,7 @@ Attackを１回する。",2003,Block,1,SelectDiscardSelf,2,Attack,1,,,,,,,,,,,,,
 自分のターンならターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
 3023,cmd:crd/sqc,コマンド：シード・スカーク,D,R,9,"自分のターンならエネルギーの最大値をー３。
 相手の手札を全て捨てさせる。
-自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn,3,RandomDiscardOpponent,ALL,SelectDiscardSelf,ALL,,,,,,,,,,,,
+自分の手札を全て捨てる。",3023,Defence,1,ManaReduceIfMyTurn,3,RandomDiscardOpponent,100,SelectDiscardSelf,ALL,,,,,,,,,,,,
 4001,EX_001,ルール_001,E,R,0,"このカードを手札に加えたとき
 これと同名のカードが5枚あるなら
 自分はゲームに勝利する。",4001,EX_001,1,,,,,,,,,,,,,,,,,,

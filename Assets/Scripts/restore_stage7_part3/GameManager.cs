@@ -12,6 +12,8 @@ public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
 
+    private bool _lockHandCardUse = false;
+
     [Header("Gameplay Managers (Scene Common)")]
     public DeckManager deckManager;
     public DiscardManager discardManager;
@@ -29,6 +31,16 @@ public class GameManager : NetworkBehaviour
     public Button drawButton;
     public Button increaseManaButton;
     public Button endTurnButton;
+
+    [Header("Deck UI")]
+    public TMP_Text deckCountText;
+
+    // ▼追加：勝敗状態
+    private bool _isGameOver = false;
+    public bool IsGameOver => _isGameOver;
+
+    private const string EX_CARD_NAME = "EX_001";
+    private const int EX_WIN_COUNT = 5;
 
     [Header("Initial Settings")]
     public int initialHandCount = 5;
@@ -70,6 +82,31 @@ public class GameManager : NetworkBehaviour
         runner = FindAnyObjectByType<NetworkRunner>();
 
         if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
+    }
+
+    public bool IsLocalPlayersTurn()
+    {
+        if (players == null) return false;
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count) return false;
+
+        var turnPlayer = players[currentPlayerIndex];
+        if (turnPlayer == null || turnPlayer.Object == null) return false;
+
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) return false;
+
+        return (turnPlayer.Object.InputAuthority == r.LocalPlayer);
+    }
+
+    public bool IsHandCardUseLocked()
+    {
+        return _lockHandCardUse;
+    }
+
+    public void SetHandCardUseLocked(bool locked)
+    {
+        _lockHandCardUse = locked;
     }
 
     // ============================================================
@@ -348,7 +385,15 @@ public class GameManager : NetworkBehaviour
             if (players[1] != null && players[1].handManager != null)
                 players[1].handCount = players[1].handManager.CardCount;
         }
+        if (Object.HasStateAuthority)
+        {
+            // ▼追加：初期配布後に山札枚数を同期
+            SyncDeckCountHostOnly();
 
+            // ▼追加：初期手札でEX勝利してたら即決着
+            TryCheckEx001Win(0);
+            TryCheckEx001Win(1);
+        }
     }
 
     // ============================================================
@@ -527,6 +572,8 @@ public class GameManager : NetworkBehaviour
 
         // ★ 「このドローでマナを回復するか？」フラグも渡す
         RPC_ApplyDraw(playerIndex, cardId, resetMana);
+        // ▼追加：山札枚数同期（0なら引き分け）
+        SyncDeckCountHostOnly();
     }
 
     // 効果ドロー用のリクエスト（クライアント → Host）
@@ -568,7 +615,8 @@ public class GameManager : NetworkBehaviour
         {
             RPC_ApplyDraw(playerIndex, id, false);
         }
-
+        // ▼追加：山札枚数同期（0なら引き分け）
+        SyncDeckCountHostOnly();
         Debug.Log($"RPC_RequestEffectDraw: playerIndex={playerIndex} に効果ドロー count={count} を適用しました。");
     }
 
@@ -606,6 +654,7 @@ public class GameManager : NetworkBehaviour
             list.Add(cardId);
 
             if (pm != null) pm.handCount = list.Count;
+            TryCheckEx001Win(playerIndex);
         }
 
 
@@ -654,6 +703,8 @@ public class GameManager : NetworkBehaviour
         {
             RPC_ApplyDraw(playerIndex, id, false);
         }
+        // ▼追加：山札枚数同期（0なら引き分け）
+        SyncDeckCountHostOnly();
     }
 
     // 現在のターンプレイヤーに効果ドローさせる簡易版
@@ -680,6 +731,8 @@ public class GameManager : NetworkBehaviour
         {
             RPC_ApplyDraw(currentPlayerIndex, id, false);
         }
+        // ▼追加：山札枚数同期（0なら引き分け）
+        SyncDeckCountHostOnly();
     }
 
 
@@ -1247,6 +1300,53 @@ public class GameManager : NetworkBehaviour
     }
 
     // ============================================================
+    //  ライフ→手札（Defenceで使わなかった時など）を Host 経由で同期
+    // ============================================================
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestAddHandFromLife(PlayerRef requester, int cardId)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+        if (cardId <= 0) return;
+
+        int playerIndex = FindPlayerIndexByRef(requester);
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+
+        var list = GetHostHandIdList(playerIndex);
+        list.Add(cardId);
+
+        var pm = players[playerIndex];
+        if (pm != null) pm.handCount = list.Count;
+
+        RPC_ApplyAddHandFromLife(playerIndex, cardId);
+
+        // ▼EX勝利（ライフ→手札に入った瞬間）
+        TryCheckEx001Win(playerIndex);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ApplyAddHandFromLife(int playerIndex, int cardId)
+    {
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+
+        var pm = players[playerIndex];
+        if (pm == null || pm.handManager == null) return;
+
+        // 手札の実体は「本人のクライアントだけ」追加
+        if (pm.Object != null && pm.Object.HasInputAuthority)
+        {
+            var data = deckManager.GetCardDataById(cardId);
+            pm.handManager.AddCardFromData(data);
+        }
+
+        // handCount表示など（あなたの既存同期設計に合わせて）
+        if (pm != null)
+            pm.NotifyHandChangedForBothSides();
+    }
+
+
+    // ============================================================
     //  捨て札回収（RecoverDiscard）同期
     // ============================================================
 
@@ -1277,6 +1377,17 @@ public class GameManager : NetworkBehaviour
         }
 
         if (accepted.Count == 0) return;
+
+        // ▼追加：Hostの手札IDリストにも反映（EX判定のため）
+        var list = GetHostHandIdList(playerIndex);
+        foreach (var id in accepted)
+            list.Add(id);
+
+        var pm = players[playerIndex];
+        if (pm != null) pm.handCount = list.Count;
+
+        // ▼追加：EX_001勝利チェック（手札に入った瞬間）
+        TryCheckEx001Win(playerIndex);
 
         RPC_SyncRecoverDiscard(playerIndex, accepted.ToArray());
     }
@@ -1449,6 +1560,118 @@ public class GameManager : NetworkBehaviour
 
         // 全員へ適用（捨て札追加＋対象本人の手札実体削除）
         RPC_SyncDiscardFromHand(targetIndex, accepted.ToArray());
+    }
+    // ============================================================
+    //  Deck UI / GameOver / EX Win
+    // ============================================================
+
+    private void UpdateDeckCountUI(int remaining)
+    {
+        if (deckCountText != null)
+            deckCountText.text = $"DECK: {remaining}";
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SyncDeckCount(int remaining)
+    {
+        UpdateDeckCountUI(remaining);
+    }
+
+    // Host専用：山札枚数を全員に同期＋0なら引き分け
+    private void SyncDeckCountHostOnly()
+    {
+        if (!Object.HasStateAuthority) return;
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+
+        int remain = (deckManager != null) ? deckManager.GetRemainingCount() : 0;
+        RPC_SyncDeckCount(remain);
+
+        // 「最後のカードを引いた時」＝引いた後に0になってたら引き分け
+        if (remain <= 0)
+        {
+            TryEndGameDraw("山札切れ");
+        }
+    }
+
+    private void EndGameInternal(int winnerIndex, string reason)
+    {
+        if (_isGameOver) return;
+        _isGameOver = true;
+
+        RPC_GameOver(winnerIndex, reason);
+    }
+
+    private void TryEndGameDraw(string reason)
+    {
+        if (_isGameOver) return;
+        EndGameInternal(-1, reason);
+    }
+
+    // Attack終了時のライフ0チェック（EX勝利が先に出てたらここでは何もしない）
+    public bool TryEndGameByLifeZeroAfterAttack(PlayerManager attacker, PlayerManager defender)
+    {
+        if (!Object.HasStateAuthority) return false;
+        if (_isGameOver) return false;
+        if (attacker == null || defender == null) return false;
+
+        int defenderLife = GetLifeCountSafe(defender);
+        if (defenderLife > 0) return false;
+
+        int attackerIndex = players.IndexOf(attacker);
+        if (attackerIndex < 0) attackerIndex = 0;
+
+        EndGameInternal(attackerIndex, "Attack終了時に相手ライフが0");
+        return true;
+    }
+
+    // EX_001：手札に5枚揃った瞬間勝利（Host手札IDリストで判定）
+    private bool TryCheckEx001Win(int playerIndex)
+    {
+        if (!Object.HasStateAuthority) return false;
+        if (_isGameOver) return false;
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+
+        var list = GetHostHandIdList(playerIndex);
+        if (list == null) return false;
+
+        int exCount = 0;
+        foreach (var id in list)
+        {
+            var data = deckManager.GetCardDataById(id);
+            if (data != null && data.name == EX_CARD_NAME)
+                exCount++;
+        }
+
+        if (exCount >= EX_WIN_COUNT)
+        {
+            EndGameInternal(playerIndex, "EX_001が5枚揃った");
+            return true;
+        }
+
+        return false;
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_GameOver(int winnerIndex, string reason)
+    {
+        _isGameOver = true;
+
+        string msg = (winnerIndex < 0)
+            ? $"引き分け：{reason}"
+            : $"勝利：P{winnerIndex + 1}（{reason}）";
+
+        if (turnChoicePanel != null)
+            turnChoicePanel.SetActive(false);
+
+        if (effectWindow != null)
+        {
+            StartCoroutine(effectWindow.ShowProcessAuto(msg, 2.0f, false));
+        }
+        else
+        {
+            Debug.Log(msg);
+        }
     }
 
 

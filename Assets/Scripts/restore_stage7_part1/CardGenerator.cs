@@ -401,6 +401,25 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     {
         if (myData == null) return false;
 
+        // ▼ 追加：手札カードは「自分のターン」だけ使用可能
+        // （Block/ライフから来たカード/DefenceWindow等は別経路なのでここでは止めない）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm != null)
+        {
+            if (!gm.IsLocalPlayersTurn())
+            {
+                Debug.Log("自分のターンではないため、手札カードは使用できません。");
+                return false;
+            }
+
+            // ▼ 追加：効果処理中は手札カード使用禁止
+            if (gm.IsHandCardUseLocked())
+            {
+                Debug.Log("効果処理中のため、手札カードは使用できません。");
+                return false;
+            }
+        }
+
         // ▼ 追加：Blockカードは通常使用禁止（攻撃への反応時のみ）
         if (myData.type == "B" || myData.type == "BLOCK")
         {
@@ -422,7 +441,6 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
 
         // ★ Host に正式な支払いを依頼（Host自身も含む）
-        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         var runner = FindAnyObjectByType<NetworkRunner>();
 
         if (gm != null && runner != null)
@@ -435,16 +453,16 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             player.SpendMana(myData.cost);
         }
 
-        // ここでローカルの UI を直接いじらなくても、
-        // PlayerManager.Render() + Networked 同期で最終的には正しい値になる。
-        // （Hostの場合はそのまま即反映されていく）
-
         // ★ 使用確定時、GameObjectは非アクティブ化せず"見た目だけ"即座に消す
         HideVisualsForUsing();
+
+        // ▼ 追加：効果処理中ロック（手札カードのみ）
+        if (gm != null) gm.SetHandCardUseLocked(true);
 
         StartCoroutine(EffectSequenceCoroutine()); // ★ コルーチン開始
         return true;
     }
+
 
     /// <summary>
     /// 見た目とクリック判定だけを無効化して、コルーチンは継続させる
@@ -473,8 +491,12 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     private IEnumerator EffectSequenceCoroutine()
     {
         var processWindow = FindAnyObjectByType<EffectProcessWindow>();
+        var gmLock = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
 
-        var effects = new List<(string type, string value)>()
+        // 手札カード使用ロック解除は必ず最後に行う（途中return/Destroy対策）
+        try
+        {
+            var effects = new List<(string type, string value)>()
         {
             (myData.effectType1, myData.effectValue1),
             (myData.effectType2, myData.effectValue2),
@@ -484,61 +506,62 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
             (myData.effectType6, myData.effectValue6),
         };
 
-        bool hasAttackEffect = false;
-        for (int i = 0; i < effects.Count; i++)
-        {
-            if (effects[i].type == "Attack")
+            bool hasAttackEffect = false;
+            for (int i = 0; i < effects.Count; i++)
             {
-                hasAttackEffect = true;
-                break;
+                if (effects[i].type == "Attack")
+                {
+                    hasAttackEffect = true;
+                    break;
+                }
             }
+
+            foreach (var e in effects)
+            {
+                if (string.IsNullOrEmpty(e.type)) continue;
+
+                bool isAuto = IsAutoEffect(e.type);
+
+                if (processWindow != null && !hasAttackEffect)
+                    processWindow.ShowMessage($"効果実行中: {e.type} ({e.value})");
+
+                yield return StartCoroutine(ApplyEffect(e.type, e.value));
+
+                if (isAuto)
+                    yield return new WaitForSeconds(0.6f);
+                else
+                    yield return new WaitForSeconds(0.1f);
+            }
+
+            if (processWindow != null && !hasAttackEffect)
+                processWindow.ShowMessage("効果処理完了！");
+
+            yield return new WaitForSeconds(0.4f);
+
+            if (!skipAutoDiscard && myData != null && myData.type != "B" && myData.type != "BLOCK")
+            {
+                var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                var r = FindAnyObjectByType<NetworkRunner>();
+
+                if (gm != null && r != null)
+                {
+                    gm.RPC_RequestAddDiscard(r.LocalPlayer, myData.id);
+                }
+                else if (discardManager != null)
+                {
+                    discardManager.AddToDiscard(myData);
+                }
+            }
+
+            if (player != null) player.NotifyHandChangedForBothSides();
+            Destroy(gameObject);
         }
-
-        foreach (var e in effects)
+        finally
         {
-            if (string.IsNullOrEmpty(e.type)) continue;
-
-            bool isAuto = IsAutoEffect(e.type);
-
-            if (processWindow != null)
-            {
-                // ★Attackカードでも表示する（Attackも待てるようにしたため）
-                yield return StartCoroutine(processWindow.ShowProcessAuto($"効果実行中: {e.type} ({e.value})", 0.6f, false));
-            }
-
-            yield return StartCoroutine(ApplyEffect(e.type, e.value));
-
-            // 自動効果は少し間を空ける
-            if (isAuto) yield return new WaitForSeconds(0.6f);
-            else yield return new WaitForSeconds(0.1f);
+            if (gmLock != null) gmLock.SetHandCardUseLocked(false);
         }
-
-        if (processWindow != null)
-            yield return StartCoroutine(processWindow.ShowProcessAuto("効果処理完了！", 0.6f, false));
-
-        yield return new WaitForSeconds(0.4f);
-
-        if (!skipAutoDiscard && myData != null && myData.type != "B" && myData.type != "BLOCK")
-        {
-            var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
-            var r = FindAnyObjectByType<NetworkRunner>();
-
-            if (gm != null && r != null)
-            {
-                gm.RPC_RequestAddDiscard(r.LocalPlayer, myData.id);
-            }
-            else if (discardManager != null)
-            {
-                // オフライン等のフォールバック
-                discardManager.AddToDiscard(myData);
-            }
-        }
-        if (player != null) player.NotifyHandChangedForBothSides();
-
-        // ここは discardManager の有無に関係なく消してOK（残ると別バグの温床）
-        Destroy(gameObject);
-
     }
+
 
     private bool IsAutoEffect(string type)
     {

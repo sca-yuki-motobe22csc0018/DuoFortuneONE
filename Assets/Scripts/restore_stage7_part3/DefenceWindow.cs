@@ -120,11 +120,23 @@ public class DefenceWindow : MonoBehaviour
         {
             Debug.Log("DEFENCEを発動しませんでした。");
 
-            // 使わなかった場合 → 手札に加える
-            if (currentPlayer != null && currentPlayer.handManager != null)
+            // 使わなかった場合 → Host経由で手札に加える（EX判定もここで確実にできる）
+            var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+            var r = FindAnyObjectByType<NetworkRunner>();
+
+            if (gm != null && r != null)
             {
-                currentPlayer.handManager.AddCardFromData(cardData);
-                Debug.Log($"破壊されたカード {cardData.name} を手札に加えました");
+                gm.RPC_RequestAddHandFromLife(r.LocalPlayer, cardData.id);
+                Debug.Log($"破壊されたカード {cardData.name} を手札に加える要求を送信しました");
+            }
+            else
+            {
+                // フォールバック（ローカルのみ）
+                if (currentPlayer != null && currentPlayer.handManager != null)
+                {
+                    currentPlayer.handManager.AddCardFromData(cardData);
+                    Debug.Log($"破壊されたカード {cardData.name} を手札に加えました（ローカル）");
+                }
             }
         }
 
