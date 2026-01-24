@@ -718,6 +718,15 @@ public class GameManager : NetworkBehaviour
         var data = deckManager.GetCardDataById(cardId);
         pm.handManager.AddCardFromData(data);
 
+        // ▼追加：引いたカードは「自分の端末だけ」表示
+        if (pm.Object != null && pm.Object.HasInputAuthority)
+        {
+            if (CardMovePopupManager.Instance != null)
+            {
+                CardMovePopupManager.Instance.ShowDrawCards(new int[] { cardId });
+            }
+        }
+
         // ★ Host only: ドローで手札ID追加＆handCount確定
         if (Object.HasStateAuthority)
         {
@@ -728,13 +737,11 @@ public class GameManager : NetworkBehaviour
             TryCheckEx001Win(playerIndex);
         }
 
-
         // ★追加：Hostが handCount(Networked) を確定（ドローで増えた分を即同期）
         if (Object.HasStateAuthority)
         {
             pm.handCount = pm.handManager.CardCount;
         }
-
 
         // ★ 「このドローはターン開始時の選択」ならマナを回復
         if (resetMana)
@@ -744,6 +751,7 @@ public class GameManager : NetworkBehaviour
 
         Debug.Log($"RPC_ApplyDraw: playerIndex={playerIndex} に cardID={cardId} をドローさせました。 Reset={resetMana}");
     }
+
 
     // ============================================================
     //  効果ドロー用 共通関数（Host だけ山札を触る）
@@ -1487,7 +1495,14 @@ public class GameManager : NetworkBehaviour
             // 手札へ追加（各クライアントで同じPlayerManagerのHandManagerに追加）
             pm.handManager.AddCardFromData(data);
         }
+
+        // ▼追加：回収したカードは両者に表示
+        if (CardMovePopupManager.Instance != null)
+        {
+            CardMovePopupManager.Instance.ShowRecoverCards(recoverIds);
+        }
     }
+
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_RequestDiscardFromHand(PlayerRef requester, PlayerRef targetRef, int[] cardIds)
@@ -1542,6 +1557,12 @@ public class GameManager : NetworkBehaviour
             }
         }
 
+        // ▼追加：捨てたカードは両者に表示（大量になり得るのでグリッド＆同IDは枚数表示でまとめる）
+        if (CardMovePopupManager.Instance != null)
+        {
+            CardMovePopupManager.Instance.ShowDiscardCards(cardIds);
+        }
+
         // 2) 対象本人だけ：手札の実カード(GameObject)を消す
         if (targetPM.Object != null && targetPM.Object.HasInputAuthority && targetPM.handManager != null)
         {
@@ -1554,6 +1575,7 @@ public class GameManager : NetworkBehaviour
             targetPM.UpdateHandCountUI(); // 自分画面の即時反映
         }
     }
+
 
     // 対象本人の端末だけで実行される「手札実体の削除」
     private void RemoveLocalHandCardById(PlayerManager pm, int cardId)
