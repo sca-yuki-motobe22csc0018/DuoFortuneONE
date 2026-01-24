@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static System.Net.Mime.MediaTypeNames;
 
+
 /// <summary>
 /// Photon Fusion2対応ロビー管理クラス
 /// Host/Client名前同期をLobbyNetwork経由で実施
@@ -27,6 +28,9 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
     public TMP_Text textHostName;
     public TMP_Text textClientName;
     public Button buttonReady;
+    public Button buttonDeckSelect;
+    public TMP_Text textDeckSelect;
+    public Button buttonBackToTitle;
 
     [Header("Join Panel")]
     public GameObject joinPanel;
@@ -75,6 +79,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         buttonBackToMain.onClick.AddListener(OnBackToMain);
         buttonReady.onClick.AddListener(OnToggleReady);
         buttonStart.onClick.AddListener(OnStartGame);
+        buttonBackToTitle.onClick.AddListener(backTitleButton);
 
         myName = "Player_" + UnityEngine.Random.Range(1000, 9999);
     }
@@ -90,9 +95,12 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         textClientName.gameObject.SetActive(false);
         buttonReady.gameObject.SetActive(false);
         joinPanel.SetActive(false);
+        buttonDeckSelect.gameObject.SetActive(false);
+        textDeckSelect.gameObject.SetActive(false);
 
         buttonCreate.gameObject.SetActive(true);
         buttonEnterRoom.gameObject.SetActive(true);
+        buttonBackToTitle.gameObject.SetActive(true);
 
         textStatus.text = "";
     }
@@ -140,9 +148,12 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 
             buttonCreate.gameObject.SetActive(false);
             buttonEnterRoom.gameObject.SetActive(false);
+            buttonBackToTitle.gameObject.SetActive(false);
             textRoomID.gameObject.SetActive(true);
             textTurnOrder.gameObject.SetActive(true);
             buttonTurnOrder.gameObject.SetActive(true);
+            buttonDeckSelect.gameObject.SetActive(true);
+            textDeckSelect.gameObject.SetActive(true);
             buttonStart.gameObject.SetActive(true);
             buttonBackToMain.gameObject.SetActive(true);
             textHostName.gameObject.SetActive(true);
@@ -197,6 +208,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 
             buttonCreate.gameObject.SetActive(false);
             buttonEnterRoom.gameObject.SetActive(false);
+            buttonBackToTitle.gameObject.SetActive(false);
             joinPanel.SetActive(false);
 
             textRoomID.gameObject.SetActive(true);
@@ -204,6 +216,8 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
             textHostName.gameObject.SetActive(true);
             textClientName.gameObject.SetActive(true);
             buttonReady.gameObject.SetActive(true);
+            buttonDeckSelect.gameObject.SetActive(true);
+            textDeckSelect.gameObject.SetActive(true);
 
             buttonReady.GetComponentInChildren<TMP_Text>().text = "準備完了";
 
@@ -379,6 +393,10 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         for (int i = 0; i < length; i++)
             sb.Append(chars[rand.Next(chars.Length)]);
         return sb.ToString();
+    }
+    private void backTitleButton()
+    {
+        SceneManager.LoadScene("Title");
     }
 
     // -------------------------------

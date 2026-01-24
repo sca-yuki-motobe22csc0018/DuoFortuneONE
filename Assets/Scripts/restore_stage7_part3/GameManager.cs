@@ -6,6 +6,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using static CardGenerator;
 using System.Linq;
+using UnityEngine.SceneManagement;
+
 
 
 public class GameManager : NetworkBehaviour
@@ -34,6 +36,17 @@ public class GameManager : NetworkBehaviour
 
     [Header("Deck UI")]
     public TMP_Text deckCountText;
+
+    // ============================
+    // GameOver UI
+    // ============================
+    [Header("Game Over UI")]
+    public GameObject gameOverPanel;
+    public TMP_Text gameOverResultText;   // "WIN / LOSE / DRAW"
+    public TMP_Text gameOverReasonText;   // 理由（任意）
+    public Button returnHomeButton;
+    public string homeSceneName = "Title"; // ←あなたのホームScene名に合わせる
+
 
     // ▼追加：勝敗状態
     private bool _isGameOver = false;
@@ -75,6 +88,100 @@ public class GameManager : NetworkBehaviour
     private List<int> hostHandIdsP0 = new List<int>();
     private List<int> hostHandIdsP1 = new List<int>();
 
+    // ============================================================
+    // Deck Sync (Host builds deck after receiving both selections)
+    // ============================================================
+    private bool _sentLocalDeckToHost = false;
+
+    private bool _hostReceivedDeckP0 = false;
+    private bool _hostReceivedDeckP1 = false;
+
+    private List<int> _hostDeckIdsP0 = new List<int>(); // players[0]
+    private List<int> _hostDeckIdsP1 = new List<int>(); // players[1]
+
+    private List<int> GetLocalSelectedDeckIds()
+    {
+        List<string> src = null;
+
+        // ① シーン跨ぎ用（推奨）
+        if (GlobalDeckLocator.Instance != null && GlobalDeckLocator.Instance.selectedDeck != null && GlobalDeckLocator.Instance.selectedDeck.Count > 0)
+        {
+            src = GlobalDeckLocator.Instance.selectedDeck;
+        }
+        else
+        {
+            // ② JSON保存から取得
+            if (DeckSaveManager.Instance != null)
+            {
+                var deck = DeckSaveManager.Instance.GetSelectedDeck();
+                if (deck != null && deck.cardNumbers != null && deck.cardNumbers.Count > 0)
+                    src = deck.cardNumbers;
+            }
+        }
+
+        var ids = new List<int>();
+        if (src == null) return ids;
+
+        for (int i = 0; i < src.Count; i++)
+        {
+            if (int.TryParse(src[i], out int id))
+                ids.Add(id);
+        }
+
+        return ids;
+    }
+    private void TrySendLocalDeckToHost()
+    {
+        if (_sentLocalDeckToHost) return;
+
+        if (runner == null) runner = FindAnyObjectByType<NetworkRunner>();
+        if (runner == null) return;
+
+        // Hostは送らない（Hostはローカル取得で確定させる）
+        if (Object.HasStateAuthority) return;
+
+        var ids = GetLocalSelectedDeckIds();
+        RPC_SendSelectedDeckToHost(runner.LocalPlayer, ids.ToArray());
+        _sentLocalDeckToHost = true;
+
+        Debug.Log($"[GameManager] Sent local deck to host. count={ids.Count}");
+    }
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    private void RPC_SendSelectedDeckToHost(PlayerRef sender, int[] deckIds)
+    {
+        if (players == null || players.Count < 2) return;
+
+        int idx = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.InputAuthority == sender)
+            {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) return;
+
+        if (deckIds == null) deckIds = new int[0];
+
+        if (idx == 0)
+        {
+            _hostDeckIdsP0 = new List<int>(deckIds);
+            _hostReceivedDeckP0 = true;
+        }
+        else
+        {
+            _hostDeckIdsP1 = new List<int>(deckIds);
+            _hostReceivedDeckP1 = true;
+        }
+
+        Debug.Log($"[Host] Received deck from player[{idx}] count={deckIds.Length}");
+    }
+
+
+
+
     private List<int> GetHostHandIdList(int playerIndex)
     {
         return (playerIndex == 0) ? hostHandIdsP0 : hostHandIdsP1;
@@ -91,7 +198,16 @@ public class GameManager : NetworkBehaviour
         runner = FindAnyObjectByType<NetworkRunner>();
 
         if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
+
+        // ▼追加：GameOver UI 初期化
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (returnHomeButton != null)
+        {
+            returnHomeButton.onClick.RemoveAllListeners();
+            returnHomeButton.onClick.AddListener(OnReturnHomeClicked);
+        }
     }
+
 
     public bool IsLocalPlayersTurn()
     {
@@ -116,7 +232,14 @@ public class GameManager : NetworkBehaviour
     public void SetHandCardUseLocked(bool locked)
     {
         _lockHandCardUse = locked;
+
+        // ★追加：ローカルのターン中だけ、ロックならEndTurnも押せない
+        if (endTurnButton != null)
+        {
+            endTurnButton.interactable = IsLocalPlayersTurn() && !locked && !_isGameOver;
+        }
     }
+
 
     // ============================================================
     //  PlayerPrefab から呼ばれるプレイヤー登録
@@ -128,22 +251,22 @@ public class GameManager : NetworkBehaviour
 
         Debug.Log($"[GameManager] RegisterPlayer: 現在 {players.Count}人");
 
-        // ✅ 2人揃ったら1回だけゲーム開始
         if (players.Count == 2)
         {
-            // 相手参照セット
             players[0].SetOpponent(players[1]);
             players[1].SetOpponent(players[0]);
 
-            // ✅ UIリスナー登録
             drawButton.onClick.AddListener(OnDrawSelected);
             increaseManaButton.onClick.AddListener(OnIncreaseManaSelected);
             endTurnButton.onClick.AddListener(OnEndTurn);
 
-            // ✅ ゲーム開始は1回だけ
+            // ★ Clientはここで一度だけ Host にデッキを送る
+            TrySendLocalDeckToHost();
+
             StartCoroutine(InitGameCoroutine());
         }
     }
+
 
     // ============================================================
     //  ゲーム開始処理（2人揃ったら呼ばれる）
@@ -153,8 +276,18 @@ public class GameManager : NetworkBehaviour
         // Host だけが山札と先攻決定・配布を担当
         if (Object.HasStateAuthority)
         {
+            // ★ Host自身のデッキはローカルから確定（players[0]前提）
+            //    ※もし順番がズレる可能性があるなら、sender判定式に寄せるのもOK
+            _hostDeckIdsP0 = GetLocalSelectedDeckIds();
+            _hostReceivedDeckP0 = true;
+
+            // ★ Clientのデッキが届くまで待つ
+            while (!(_hostReceivedDeckP0 && _hostReceivedDeckP1))
+                yield return null;
+
+            // ★ 受信した2人分で山札を作る（DefaultDeck + P0 + P1）
             if (deckManager != null)
-                deckManager.InitializeDeck();
+                deckManager.InitializeDeckWithSelectedDecks(_hostDeckIdsP0, _hostDeckIdsP1);
 
             // --- 先攻決定 ---
             int mode = LobbyManager.SelectedTurnMode;
@@ -177,27 +310,23 @@ public class GameManager : NetworkBehaviour
             int first = FirstPlayerIndex;
             int second = (first == 0) ? 1 : 0;
 
-            // 山札から ID を抜き取る（先攻5 → 後攻5 → 先攻Life3 → 後攻Life3）
             int[] firstHandIDs = deckManager.DrawCardIDs(initialHandCount);
             int[] secondHandIDs = deckManager.DrawCardIDs(initialHandCount);
             int[] firstLifeIDs = deckManager.DrawCardIDs(initialLifeCount);
             int[] secondLifeIDs = deckManager.DrawCardIDs(initialLifeCount);
 
-            // players[0], players[1] に対応する形に並べ替え
             int[] p0Hand = (first == 0) ? firstHandIDs : secondHandIDs;
             int[] p1Hand = (first == 0) ? secondHandIDs : firstHandIDs;
             int[] p0Life = (first == 0) ? firstLifeIDs : secondLifeIDs;
             int[] p1Life = (first == 0) ? secondLifeIDs : firstLifeIDs;
 
-            // ★ 全員に初期手札＆ライフを反映
             RPC_InitHandsAndLife(p0Hand, p1Hand, p0Life, p1Life);
         }
 
-        // ちょっと待ってからターン開始（RPC反映待ち）
         yield return new WaitForSeconds(0.2f);
-
         StartTurnInternal();
     }
+
 
     // ============================================================
     //  ターン開始処理（UIなどの切替）
@@ -219,9 +348,10 @@ public class GameManager : NetworkBehaviour
         if (player.Object.HasInputAuthority)
         {
             if (turnChoicePanel != null) turnChoicePanel.SetActive(true);
-            if (endTurnButton != null) endTurnButton.interactable = true;
 
-            // 変更後（Next待ちしない）
+            // ★変更：ロック中/ゲーム終了中は押せない
+            if (endTurnButton != null) endTurnButton.interactable = !_lockHandCardUse && !_isGameOver;
+
             if (effectWindow != null)
                 StartCoroutine(effectWindow.ShowProcessAuto("あなたのターン", 0.8f, false));
         }
@@ -231,6 +361,7 @@ public class GameManager : NetworkBehaviour
             if (endTurnButton != null) endTurnButton.interactable = false;
         }
     }
+
 
     // ============================================================
     //  UI ボタン処理
@@ -293,6 +424,10 @@ public class GameManager : NetworkBehaviour
 
     public void OnEndTurn()
     {
+        // ★追加：処理中/ゲーム終了後はターンを終えられない
+        if (_isGameOver) return;
+        if (_lockHandCardUse) return;
+
         var player = players[currentPlayerIndex];
         if (!player.Object.HasInputAuthority) return;
 
@@ -304,6 +439,27 @@ public class GameManager : NetworkBehaviour
         else
             Rpc_RequestNextTurn();
     }
+    public void OnEndTurnFromEffect()
+    {
+        // ★効果によるターンエンドは「処理中ロック」を無視して通す
+        if (_isGameOver) return;
+
+        var player = players[currentPlayerIndex];
+        if (!player.Object.HasInputAuthority) return;
+
+        if (turnChoicePanel != null)
+            turnChoicePanel.SetActive(false);
+
+        if (endTurnButton != null)
+            endTurnButton.interactable = false;
+
+        if (Object.HasStateAuthority)
+            NextTurn();
+        else
+            Rpc_RequestNextTurn();
+    }
+
+
 
     // ============================================================
     //  初期手札＆ライフ配布用 RPC（Host → 全員）
@@ -1750,22 +1906,81 @@ public class GameManager : NetworkBehaviour
     {
         _isGameOver = true;
 
-        string msg = (winnerIndex < 0)
-            ? $"引き分け：{reason}"
-            : $"勝利：P{winnerIndex + 1}（{reason}）";
+        // 以降の操作を止める
+        _lockHandCardUse = true;
 
         if (turnChoicePanel != null)
             turnChoicePanel.SetActive(false);
 
-        if (effectWindow != null)
+        if (blockWindow != null) blockWindow.gameObject.SetActive(false);
+        if (defenceWindow != null) defenceWindow.gameObject.SetActive(false);
+
+        // 自分が勝ちか負けか判定
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+
+        int myIndex = -1;
+        if (r != null)
+            myIndex = FindPlayerIndexByRef(r.LocalPlayer);
+
+        string resultText;
+        if (winnerIndex < 0)
+            resultText = "DRAW";
+        else if (myIndex >= 0 && myIndex == winnerIndex)
+            resultText = "WIN";
+        else
+            resultText = "LOSE";
+
+        // UI表示（GameOverPanelがあればそっち優先）
+        if (gameOverPanel != null)
         {
-            StartCoroutine(effectWindow.ShowProcessAuto(msg, 2.0f, false));
+            gameOverPanel.SetActive(true);
+
+            if (gameOverResultText != null)
+                gameOverResultText.text = resultText;
+
+            if (gameOverReasonText != null)
+                gameOverReasonText.text = reason;
         }
         else
         {
-            Debug.Log(msg);
+            // フォールバック（今まで通りEffectWindow）
+            string msg = (winnerIndex < 0)
+                ? $"引き分け：{reason}"
+                : $"勝利：P{winnerIndex + 1}（{reason}）";
+
+            if (effectWindow != null)
+                StartCoroutine(effectWindow.ShowProcessAuto(msg, 2.0f, false));
+            else
+                Debug.Log(msg);
         }
     }
+
+
+    public void OnReturnHomeClicked()
+    {
+        StartCoroutine(Co_ReturnHome());
+    }
+
+    private IEnumerator Co_ReturnHome()
+    {
+        // 念のため入力ロック
+        _lockHandCardUse = true;
+
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+
+        // まだ動いてたら切断
+        if (r != null && r.IsRunning)
+        {
+            r.Shutdown();
+            // ちょい待ち（完全終了待ちの保険）
+            yield return new WaitForSeconds(0.2f);
+        }
+
+        SceneManager.LoadScene(homeSceneName);
+    }
+
 
 
 

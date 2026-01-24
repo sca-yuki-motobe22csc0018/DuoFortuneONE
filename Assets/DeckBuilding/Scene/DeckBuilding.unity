@@ -5508,7 +5508,7 @@ MonoBehaviour:
   m_Elasticity: 0.1
   m_Inertia: 1
   m_DecelerationRate: 0.135
-  m_ScrollSensitivity: 1
+  m_ScrollSensitivity: 6
   m_Viewport: {fileID: 1617937141}
   m_HorizontalScrollbar: {fileID: 64142679}
   m_VerticalScrollbar: {fileID: 1500627858}
@@ -7502,7 +7502,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cards: []
   csvFileName: Card_Data_beta.csv
-  numOfCards: 34
+  numOfCards: 37
 --- !u!4 &1768198021
 Transform:
   m_ObjectHideFlags: 0
@@ -8256,7 +8256,7 @@ MonoBehaviour:
   m_Elasticity: 0.1
   m_Inertia: 1
   m_DecelerationRate: 0.135
-  m_ScrollSensitivity: 1
+  m_ScrollSensitivity: 6
   m_Viewport: {fileID: 1570270490}
   m_HorizontalScrollbar: {fileID: 642528496}
   m_VerticalScrollbar: {fileID: 962458753}

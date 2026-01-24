@@ -673,6 +673,10 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
                 yield return StartCoroutine(DoEndTurnRoutine());
                 break;
 
+            case "EndTurnIfMyTurn":
+                yield return StartCoroutine(DoEndTurnIfMyTurnRoutine());
+                break;
+
             case "RandomDiscardSelf":
                 {
                     int cnt = 1;
@@ -895,11 +899,19 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
     }
 
-    void DoEndTurn()
+    private void DoEndTurn()
     {
-        var gm = FindAnyObjectByType<GameManager>();
-        if (gm != null) gm.OnEndTurn();
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null)
+        {
+            Debug.LogError("DoEndTurn: GameManager が見つかりません。");
+            return;
+        }
+
+        // ★効果のEndTurnはロック無視で通す
+        gm.OnEndTurnFromEffect();
     }
+
 
     private IEnumerator DoDrawRoutine(int n)
     {
@@ -1096,6 +1108,29 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         DoEndTurn();
         yield break;
     }
+
+    private IEnumerator DoEndTurnIfMyTurnRoutine()
+    {
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null || gm.players == null || gm.players.Count == 0)
+            yield break;
+
+        var current = gm.players[gm.currentPlayerIndex];
+        bool isMyTurn = (current == player) && current != null && current.Object.HasInputAuthority;
+
+        if (!isMyTurn)
+        {
+            // 見える化が不要ならこの2行は消してOK
+            if (EffectProcessWindow.Instance != null)
+                yield return EffectProcessWindow.Instance.ShowProcessAuto("自分のターンではないためターン終了をスキップします。", 0.4f, false);
+            yield break;
+        }
+
+        yield return EffectProcessWindow.Instance.ShowProcessAuto("ターンを終了します。", 0.6f, false);
+        DoEndTurn();
+        yield break;
+    }
+
 
     private IEnumerator DoAttack()
     {
