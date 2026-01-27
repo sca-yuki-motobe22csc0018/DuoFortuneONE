@@ -175,7 +175,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 802224115915367680}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b5aca9f6c31041f489035fdd9b1c9305, type: 3}
   m_Name: 
@@ -1455,6 +1455,16 @@ MonoBehaviour:
   opponentLifeRoot: {fileID: 5625613110766254046}
   opponentLifeBackPrefab: {fileID: 3228664229943183056, guid: cf9fc69a7b3d0784b9eddfc1d778d7ea, type: 3}
   opponentLifeSpacing: 3
+  opponentHandSpacing: 0.75
+  oppHandCardSpacing: 1.25
+  oppHandY: -3.5
+  oppHandMaxWidth: 12
+  oppHandMaxAngle: 10
+  oppHandCurveHeight: -2
+  oppHandArcUp: 0
+  oppHandNormalScale: 0.9
+  oppHandBaseSortingOrder: 100
+  oppHandOrderStep: 10
 --- !u!114 &5389386723449038482
 MonoBehaviour:
   m_ObjectHideFlags: 0

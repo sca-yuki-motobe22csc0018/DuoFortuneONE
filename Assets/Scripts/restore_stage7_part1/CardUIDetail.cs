@@ -17,8 +17,10 @@ public class CardUIDetail : MonoBehaviour, IPointerClickHandler
     public void OnPointerClick(PointerEventData eventData)
     {
         // ★ 回収モード中は短押しで詳細を開かない
+        // ★ 回収モード中は左クリック短押しで詳細を開かない（右クリックはOK）
         var dm = FindAnyObjectByType<DiscardManager>();
-        if (dm != null && dm.IsRecoverMode) return;
+        if (eventData.button == PointerEventData.InputButton.Left && dm != null && dm.IsRecoverMode) return;
+
 
         if (cardData == null)
         {

@@ -8,7 +8,9 @@ using UnityEngine.EventSystems;
 using System.Collections; // ★ 追加（コルーチン用）
 using Fusion;
 
-public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+public class CardGenerator : MonoBehaviour,
+    IPointerDownHandler, IPointerUpHandler, IPointerExitHandler, IPointerClickHandler,
+    IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [Header("UI Components")]
     public Image cardImage;
@@ -70,6 +72,19 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
     private Camera mainCam;
     private Vector3 offset;
     private bool isDragging = false;
+
+    // ==============================
+    // クリック / 長押しで詳細表示
+    // ==============================
+    [Header("詳細表示（クリック/長押し）")]
+    public float longPressThreshold = 0.5f;
+
+    private float pointerDownTime;
+    private bool pointerHeld;
+    private bool longPressTriggered;
+    private bool draggedDuringPress;
+    private PointerEventData.InputButton pointerDownButton = PointerEventData.InputButton.Left;
+
 
     private Transform originalParent;
     private Vector3 originalLocalPos;
@@ -305,7 +320,41 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         Vector3 worldPos = mainCam.ScreenToWorldPoint(eventData.position);
         worldPos.z = 0;
         offset = transform.position - worldPos;
+
+        // ★詳細表示用（クリック/長押し）
+        pointerHeld = true;
+        longPressTriggered = false;
+        draggedDuringPress = false;
+        pointerDownButton = eventData.button;
+        pointerDownTime = Time.unscaledTime;
     }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        pointerHeld = false;
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        pointerHeld = false;
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        // 右クリック → 即詳細表示
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            ShowCardDetail();
+            return;
+        }
+
+        // 左クリック短押し（長押し未発動＆ドラッグしてない時だけ）
+        if (eventData.button == PointerEventData.InputButton.Left && !longPressTriggered && !draggedDuringPress)
+        {
+            ShowCardDetail();
+        }
+    }
+
 
     public void OnBeginDrag(PointerEventData eventData)
     {
@@ -316,6 +365,10 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         }
 
         isDragging = true;
+
+        draggedDuringPress = true;
+        pointerHeld = false;
+
 
         originalParent = transform.parent;
         originalLocalPos = transform.localPosition;
@@ -1175,6 +1228,29 @@ public class CardGenerator : MonoBehaviour, IPointerDownHandler, IBeginDragHandl
         ui.StartSelectDiscardMode(player, count);
 
         yield return new WaitUntil(() => ui.IsComplete);
+    }
+
+    private void Update()
+    {
+        // 長押しで詳細表示（ドラッグ中は無効）
+        if (pointerHeld && pointerDownButton == PointerEventData.InputButton.Left && !longPressTriggered && !draggedDuringPress)
+        {
+            float held = Time.unscaledTime - pointerDownTime;
+            if (held >= longPressThreshold)
+            {
+                longPressTriggered = true;
+                ShowCardDetail();
+            }
+        }
+    }
+
+    private void ShowCardDetail()
+    {
+        if (cardData == null) return;
+        if (CardDetailPanel.Instance == null) return;
+
+        // ★右クリック/短押し/長押しで詳細表示
+        CardDetailPanel.Instance.Show(cardData);
     }
 
 }

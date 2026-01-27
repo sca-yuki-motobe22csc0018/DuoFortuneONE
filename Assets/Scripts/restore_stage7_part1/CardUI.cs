@@ -10,7 +10,7 @@ public enum CardUISource
     RecoverZone
 }
 
-public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler, IPointerClickHandler
 {
     [Header("UI Components")]
     public Image cardImage;
@@ -70,17 +70,22 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
         SetHighlight(false); // 初期は枠OFF
     }
 
+    private PointerEventData.InputButton lastPointerButton = PointerEventData.InputButton.Left;
+
+
     public void OnPointerDown(PointerEventData eventData)
     {
         pointerHeld = true;
         longPressTriggered = false;
+        lastPointerButton = eventData.button;  // ★追加
         pointerDownTime = Time.unscaledTime;
     }
+
 
     public void OnPointerUp(PointerEventData eventData)
     {
         // 長押し未発動 → 短押し扱い
-        if (!longPressTriggered && discardManager != null && discardManager.IsRecoverMode)
+        if (lastPointerButton == PointerEventData.InputButton.Left && !longPressTriggered && discardManager != null && discardManager.IsRecoverMode)
         {
             if (sourceZone == CardUISource.DiscardZone)
             {
@@ -101,10 +106,21 @@ public class CardUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPo
     {
         pointerHeld = false;
     }
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        // ★右クリックで詳細表示（回収モードでもOK）
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            if (cardData != null && CardDetailPanel.Instance != null)
+            {
+                CardDetailPanel.Instance.Show(cardData);
+            }
+        }
+    }
 
     private void Update()
     {
-        if (pointerHeld && !longPressTriggered)
+        if (pointerHeld && lastPointerButton == PointerEventData.InputButton.Left && !longPressTriggered)
         {
             float held = Time.unscaledTime - pointerDownTime;
             if (held >= longPressThreshold)

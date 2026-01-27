@@ -293,6 +293,7 @@ MonoBehaviour:
   player: {fileID: 0}
   discardManager: {fileID: 0}
   skipAutoDiscard: 0
+  isDefenceWindowUse: 0
   targetArea: {fileID: 0}
   targetRadius: 1
 --- !u!1 &1900089338463359698
@@ -821,6 +822,7 @@ GameObject:
   - component: {fileID: 1864956247117408541}
   - component: {fileID: 8688960371291990370}
   - component: {fileID: 2023174306568587829}
+  - component: {fileID: 4466773108316098297}
   m_Layer: 0
   m_Name: UICard
   m_TagString: Untagged
@@ -931,6 +933,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   orderOffset: 1
+--- !u!114 &4466773108316098297
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6053458449577293362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74ce92c081aa4e64f911af9da768a712, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &6711570239776920666
 GameObject:
   m_ObjectHideFlags: 0

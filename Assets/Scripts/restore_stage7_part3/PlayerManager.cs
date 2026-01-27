@@ -49,6 +49,28 @@ public class PlayerManager : NetworkBehaviour
     // 相手ライフ用の裏面カードを管理
     private readonly List<GameObject> opponentLifeBackCards = new List<GameObject>();
 
+    [Header("相手手札裏面表示用")]
+    public float opponentHandSpacing = 0.75f;     // 並べる間隔（必要ならInspectorで調整）
+
+    [Header("相手手札 扇形レイアウト設定")]
+    public float oppHandCardSpacing = 1.25f;
+    public float oppHandY = -3.5f;
+    public float oppHandMaxWidth = 12f;
+
+    public float oppHandMaxAngle = 10f;
+    public float oppHandCurveHeight = -2f;
+    public bool oppHandArcUp = false;
+
+    public float oppHandNormalScale = 0.9f;
+
+    public int oppHandBaseSortingOrder = 100;
+    public int oppHandOrderStep = 10;
+
+
+    // 相手手札用の裏面カードを管理（HandManager.handCardsは使わない）
+    private readonly List<GameObject> opponentHandBackCards = new List<GameObject>();
+
+
     // ★ UI更新の無駄を減らすためのキャッシュ
     private int lastMyHandCount = -1;
     private int lastOppHandCount = -1;
@@ -103,13 +125,23 @@ public class PlayerManager : NetworkBehaviour
         if (_didInitialHandSync) yield break;
         _didInitialHandSync = true;
 
-        // 1フレーム待って、さらに少し待つ（初期配布RPC・生成の反映待ち）
+        // 初期配布が落ち着くまで待つ（ホスト側で相手手札が0表示になりがちなので少し長め）
         yield return null;
-        yield return new WaitForSeconds(0.05f);
+        yield return new WaitForSeconds(1.0f);
+
+        // さらに「手札が0のまま」なら、生成反映待ちを少しだけ粘る（最大2秒）
+        float timeout = 2.0f;
+        float elapsed = 0f;
+        while (handManager != null && handManager.CardCount == 0 && elapsed < timeout)
+        {
+            yield return new WaitForSeconds(0.2f);
+            elapsed += 0.2f;
+        }
 
         // handCount の Host確定 + 自分画面の UI 更新
         NotifyHandChangedForBothSides();
     }
+
 
 
     // ================================
@@ -321,38 +353,84 @@ public class PlayerManager : NetworkBehaviour
     }
 
     // 相手の裏面カードを枚数に合わせて増減
+    // 相手の裏面カードを枚数に合わせて増減＆整列（HandManager.handCardsは使わない）
     private void UpdateOpponentBackCards(int count)
     {
-        if (opponentHandViewManager == null || opponentBackCardPrefab == null)
+        if (opponentHandBackRoot == null || opponentBackCardPrefab == null)
             return;
 
-        var viewHM = opponentHandViewManager;
-
-        // 既存の枚数
-        int current = viewHM.handCards.Count;
-
-        // 足りないぶんを追加
+        // 足りないぶん追加
+        int current = opponentHandBackCards.Count;
         for (int i = current; i < count; i++)
         {
-            var card = GameObject.Instantiate(opponentBackCardPrefab, viewHM.transform);
-            card.transform.localScale = Vector3.one;
-
-            // HandManager に管理させる
-            viewHM.handCards.Add(card);
+            var obj = GameObject.Instantiate(opponentBackCardPrefab, opponentHandBackRoot);
+            obj.transform.localScale = Vector3.one;
+            opponentHandBackCards.Add(obj);
         }
 
-        // 多すぎるぶんを削除
-        for (int i = viewHM.handCards.Count - 1; i >= count; i--)
+        // 余分なぶん削除
+        for (int i = opponentHandBackCards.Count - 1; i >= count; i--)
         {
-            var card = viewHM.handCards[i];
-            viewHM.handCards.RemoveAt(i);
-            if (card != null)
-                GameObject.Destroy(card);
+            var obj = opponentHandBackCards[i];
+            opponentHandBackCards.RemoveAt(i);
+            if (obj != null)
+                GameObject.Destroy(obj);
         }
 
-        // ★ HandManager のレイアウトロジックをそのまま使う
-        viewHM.UpdateCardPositions();
+        // 扇形で並べる（HandManager.UpdateCardPositions と同じ計算）
+        int n = opponentHandBackCards.Count;
+        if (n == 0) return;
+
+        float totalWidth = oppHandCardSpacing * (n - 1);
+        float scaleFactor = 1f;
+
+        if (totalWidth > oppHandMaxWidth)
+        {
+            scaleFactor = oppHandMaxWidth / totalWidth;
+            totalWidth = oppHandMaxWidth;
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            var tr = opponentHandBackCards[i].transform;
+
+            float x, y, angle;
+
+            if (n == 1)
+            {
+                x = 0f;
+                y = oppHandY;
+                angle = 0f;
+            }
+            else
+            {
+                float t = (float)i / (n - 1);
+                x = -totalWidth / 2f + i * oppHandCardSpacing * scaleFactor;
+
+                if (oppHandArcUp)
+                {
+                    y = oppHandY - Mathf.Pow(t - 0.5f, 2) * oppHandCurveHeight + oppHandCurveHeight;
+                    angle = (t - 0.5f) * oppHandMaxAngle * 2f;
+                }
+                else
+                {
+                    y = oppHandY + Mathf.Pow(t - 0.5f, 2) * oppHandCurveHeight;
+                    angle = -(t - 0.5f) * oppHandMaxAngle * 2f;
+                }
+            }
+
+            tr.localPosition = new Vector3(x, y, 0f);
+            tr.localRotation = Quaternion.Euler(0f, 0f, angle);
+            tr.localScale = Vector3.one * oppHandNormalScale;
+
+            // 見た目の重なり順（必要なら）
+            var sr = opponentHandBackCards[i].GetComponent<SpriteRenderer>();
+            if (sr != null)
+                sr.sortingOrder = oppHandBaseSortingOrder + i * oppHandOrderStep;
+        }
+
     }
+
 
     // ================================
     //  相手プレイヤーの参照セット
