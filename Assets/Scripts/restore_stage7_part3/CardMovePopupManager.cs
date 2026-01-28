@@ -16,33 +16,27 @@ public class CardMovePopupManager : MonoBehaviour
     [Header("Draw (local only)")]
     public GameObject drawRoot;
     public Transform drawContent;
-    public float drawCardScale = 1.15f;
 
     [Header("Recover (both)")]
     public GameObject recoverRoot;
     public Transform recoverContent;
-    public float recoverCardScale = 1.15f;
 
     [Header("Discard (both)")]
     public GameObject discardRoot;
     public Transform discardContent; // ScrollRectのContent想定（GridLayoutGroup等）
-    public float discardCardScale = 0.65f;
-
-    [Header("Layout Spacing (optional)")]
-    public float drawSpacing = 40f;
-    public float recoverSpacing = 40f;
-    public float discardGridSpacingX = 10f;
-    public float discardGridSpacingY = 10f;
 
     private Coroutine drawCo;
     private Coroutine recoverCo;
     private Coroutine discardCo;
 
+    // ▼追加：Drawは1枚ずつ呼ばれても「積み上げ表示」するためのタイマー
+    private Coroutine drawKeepAliveCo;
+    private float drawLastAddUnscaledTime;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject);
             return;
         }
         Instance = this;
@@ -50,8 +44,21 @@ public class CardMovePopupManager : MonoBehaviour
         HideAllImmediate();
     }
 
+
     public void HideAllImmediate()
     {
+        // ▼追加：表示中コルーチンを止める（残り表示や上書き競合を防ぐ）
+        if (drawCo != null) StopCoroutine(drawCo);
+        if (recoverCo != null) StopCoroutine(recoverCo);
+        if (discardCo != null) StopCoroutine(discardCo);
+        if (drawKeepAliveCo != null) StopCoroutine(drawKeepAliveCo);
+
+        drawCo = null;
+        recoverCo = null;
+        discardCo = null;
+        drawKeepAliveCo = null;
+        drawLastAddUnscaledTime = 0f;
+
         if (drawRoot) drawRoot.SetActive(false);
         if (recoverRoot) recoverRoot.SetActive(false);
         if (discardRoot) discardRoot.SetActive(false);
@@ -61,10 +68,12 @@ public class CardMovePopupManager : MonoBehaviour
         ClearChildren(discardContent);
     }
 
+
     // ----------------------------
     // Public API
     // ----------------------------
 
+    // 引いたカード（自分だけ表示したいので、呼ぶ側でHasInputAuthorityチェックする）
     // 引いたカード（自分だけ表示したいので、呼ぶ側でHasInputAuthorityチェックする）
     public void ShowDrawCards(int[] cardIds)
     {
@@ -72,9 +81,27 @@ public class CardMovePopupManager : MonoBehaviour
         if (uiCardPrefab == null) return;
         if (drawRoot == null || drawContent == null) return;
 
-        if (drawCo != null) StopCoroutine(drawCo);
-        drawCo = StartCoroutine(ShowRoutine_Simple(drawRoot, drawContent, cardIds, drawCardScale, drawShowSeconds, groupCounts: false));
+        // ▼変更：毎回Stop→Clear→再生成 だと「最後の1枚」しか残らない
+        // なので Draw は「追加表示」にする
+        if (drawCo != null) StopCoroutine(drawCo); // 旧方式が動いていた場合の保険
+        drawCo = null;
+
+        drawRoot.SetActive(true);
+
+        foreach (var id in cardIds)
+        {
+            SpawnUICard(drawContent, id, 1);
+        }
+
+        // 「最後に追加された瞬間」から drawShowSeconds 後にまとめて消す
+        drawLastAddUnscaledTime = Time.unscaledTime;
+
+        if (drawKeepAliveCo == null)
+        {
+            drawKeepAliveCo = StartCoroutine(DrawKeepAliveRoutine());
+        }
     }
+
 
     // 捨て札から回収（両者に見せたい）
     public void ShowRecoverCards(int[] cardIds)
@@ -84,7 +111,7 @@ public class CardMovePopupManager : MonoBehaviour
         if (recoverRoot == null || recoverContent == null) return;
 
         if (recoverCo != null) StopCoroutine(recoverCo);
-        recoverCo = StartCoroutine(ShowRoutine_Simple(recoverRoot, recoverContent, cardIds, recoverCardScale, recoverShowSeconds, groupCounts: false));
+        recoverCo = StartCoroutine(ShowRoutine_Simple(recoverRoot, recoverContent, cardIds, recoverShowSeconds, groupCounts: false));
     }
 
     // 手札から捨てる（大量になり得るので small + 表(グリッド)想定、同IDは枚数表示でまとめる）
@@ -95,35 +122,50 @@ public class CardMovePopupManager : MonoBehaviour
         if (discardRoot == null || discardContent == null) return;
 
         if (discardCo != null) StopCoroutine(discardCo);
-        discardCo = StartCoroutine(ShowRoutine_Simple(discardRoot, discardContent, cardIds, discardCardScale, discardShowSeconds, groupCounts: true));
+        discardCo = StartCoroutine(ShowRoutine_Simple(discardRoot, discardContent, cardIds, discardShowSeconds, groupCounts: true));
     }
 
     // ----------------------------
     // Internal
     // ----------------------------
 
-    private IEnumerator ShowRoutine_Simple(GameObject root, Transform content, int[] cardIds, float scale, float seconds, bool groupCounts)
+    // ----------------------------
+    // Internal
+    // ----------------------------
+
+    // ▼追加：Draw表示の寿命管理（最後の追加から drawShowSeconds 経過したらまとめて消す）
+    private IEnumerator DrawKeepAliveRoutine()
+    {
+        while (true)
+        {
+            // 最後に追加された時間から一定時間経過したら消す
+            if (Time.unscaledTime - drawLastAddUnscaledTime >= drawShowSeconds)
+            {
+                break;
+            }
+            yield return null;
+        }
+
+        if (drawRoot) drawRoot.SetActive(false);
+        ClearChildren(drawContent);
+
+        drawKeepAliveCo = null;
+    }
+
+    private IEnumerator ShowRoutine_Simple(GameObject root, Transform content, int[] cardIds, float seconds, bool groupCounts)
     {
         // 表示
         root.SetActive(true);
 
         // ▼追加：Contentのレイアウト間隔をスクリプトから反映（任意）
         var hlg = content.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
-        if (hlg != null)
-        {
-            if (root == drawRoot) hlg.spacing = drawSpacing;
-            if (root == recoverRoot) hlg.spacing = recoverSpacing;
-        }
 
         var glg = content.GetComponent<UnityEngine.UI.GridLayoutGroup>();
-        if (glg != null)
-        {
-            glg.spacing = new Vector2(discardGridSpacingX, discardGridSpacingY);
-        }
 
 
         // 既存クリア
         ClearChildren(content);
+
 
         if (groupCounts)
         {
@@ -144,7 +186,7 @@ public class CardMovePopupManager : MonoBehaviour
             foreach (var id in orderedUnique)
             {
                 int count = countMap[id];
-                SpawnUICard(content, id, count, scale);
+                SpawnUICard(content, id, count);
             }
         }
         else
@@ -152,7 +194,7 @@ public class CardMovePopupManager : MonoBehaviour
             // そのまま並べる（最大3枚想定）
             foreach (var id in cardIds)
             {
-                SpawnUICard(content, id, 1, scale);
+                SpawnUICard(content, id, 1);
             }
         }
 
@@ -164,13 +206,12 @@ public class CardMovePopupManager : MonoBehaviour
         ClearChildren(content);
     }
 
-    private void SpawnUICard(Transform parent, int cardId, int count, float scale)
+    private void SpawnUICard(Transform parent, int cardId, int count)
     {
         var data = GetCardData(cardId);
         if (data == null) return;
 
         var go = Instantiate(uiCardPrefab, parent);
-        go.transform.localScale = Vector3.one * scale;
 
         // UICard.Prefabに CardUI が付いている前提
         var ui = go.GetComponent<CardUI>();

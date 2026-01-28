@@ -64,6 +64,24 @@ public class DiscardManager : MonoBehaviour
     public bool IsRecoverComplete => isRecoverComplete;
     public bool IsRecoverMode => isRecoverMode;
 
+    // ★追加：回収モードの「完了ボタン」を押せる条件を更新
+    private void UpdateCompleteButton()
+    {
+        if (completeButton == null) return;
+
+        var btn = completeButton.GetComponent<Button>();
+        if (btn == null) return;
+
+        int total = discardDataList.Count(d => d != null);
+        int selected = selectedCards.Count(d => d != null);
+        int remaining = total - selected;
+
+        // recoverCount ぴったり もしくは 捨て札がもう残ってない（=全部選び切った）
+        bool canGo = (recoverCount > 0) && (selected > 0) && (selected == recoverCount || remaining <= 0);
+
+        btn.interactable = canGo;
+    }
+
 
 
     void Start()
@@ -172,11 +190,16 @@ public class DiscardManager : MonoBehaviour
     }
 
     // 回収モード開始
+    // 回収モード開始
     public void StartRecoverMode(PlayerManager player, int count)
     {
         isRecoverComplete = false; // ★回収開始時にリセット
         isRecoverMode = true;
-        recoverCount = count;
+
+        // ★変更：捨て札が少ない場合は「全回収」扱いに寄せる（詰み防止）
+        int total = discardDataList.Count(d => d != null);
+        recoverCount = Mathf.Clamp(count, 0, total);
+
         recoverTargetPlayer = player;
         selectedCards.Clear();
 
@@ -199,10 +222,22 @@ public class DiscardManager : MonoBehaviour
             discardScrollView.anchoredPosition = recoverPos;
         }
 
+        // ★追加：0なら選びようがないので即終了（保険）
+        if (recoverCount <= 0)
+        {
+            isRecoverComplete = true;
+            EndRecoverMode();
+            return;
+        }
+
         fullViewPanel.SetActive(true);
         BuildFullView();
         BuildRecoverZone();
+
+        // ★追加：開始時点のボタン状態
+        UpdateCompleteButton();
     }
+
 
 
     // 回収ゾーン構築
@@ -232,14 +267,17 @@ public class DiscardManager : MonoBehaviour
     }
 
     // 捨て札 → 回収
+    // 捨て札 → 回収
     public void MoveCardToRecover(CardGenerator.CardData data)
     {
         if (data == null) return;
 
-        // discardDataList は「共有捨て札の実体」なので、回収選択の段階では触らない。
-        // ここで discardDataList を Remove してしまうと、Host が回収する場合に
-        // Host 側で「既に無い扱い」になって RPC_RequestRecoverDiscard 側の確定処理が空になり、
-        // Client 側の捨て札が消えない原因になる。
+        // ★追加：回収上限に達していたらこれ以上選ばせない
+        if (recoverCount > 0 && selectedCards.Count >= recoverCount)
+        {
+            ShowDiscardWarning($"指定枚数（{recoverCount}枚）までです。", 1f);
+            return;
+        }
 
         int selectedCount = GetSelectedCountById(data.id);
         int totalCount = discardDataList.Count(d => d != null && d.id == data.id);
@@ -250,17 +288,21 @@ public class DiscardManager : MonoBehaviour
             return;
         }
 
-        // 選択リスト側だけ増やす（表示上は BuildFullView で差し引く）
         var any = discardDataList.FirstOrDefault(d => d != null && d.id == data.id);
         if (any != null)
         {
             selectedCards.Add(any);
             BuildFullView();
             BuildRecoverZone();
+
+            // ★追加
+            UpdateCompleteButton();
         }
     }
 
 
+
+    // 回収 → 捨て札
     // 回収 → 捨て札
     public void MoveCardBackToDiscard(CardGenerator.CardData data)
     {
@@ -271,26 +313,40 @@ public class DiscardManager : MonoBehaviour
         {
             selectedCards.Remove(toRemove);
 
-            // discardDataList は触らない（回収確定は Host の RPC で行う）
             BuildFullView();
             BuildRecoverZone();
+
+            // ★追加
+            UpdateCompleteButton();
         }
     }
 
 
+
+    // 完了ボタン
     // 完了ボタン
     public void OnCompleteButton()
     {
         if (confirmPanel == null) return;
 
-        if (selectedCards.Count > recoverCount)
+        int total = discardDataList.Count(d => d != null);
+        int selected = selectedCards.Count(d => d != null);
+        int remaining = total - selected;
+
+        // ★追加：押せる条件（ぴったり or 捨て札残りなし）以外は確認に進めない
+        bool canGo = (recoverCount > 0) && (selected > 0) && (selected == recoverCount || remaining <= 0);
+        if (!canGo)
         {
-            // ★ 警告を一時表示
-            ShowDiscardWarning($"指定枚数（{recoverCount}枚）より多く選択しています！", 1f);
+            // まだ捨て札が残ってるなら「ぴったり選んで」
+            if (selected < recoverCount && remaining > 0)
+                ShowDiscardWarning($"指定枚数（{recoverCount}枚）ぴったり選んでください。", 1f);
+            else
+                ShowDiscardWarning("回収するカードを選んでください。", 1f);
+
             return;
         }
 
-        // 確認画面に進む前に警告を消す
+        // （以下は元のまま）確認画面へ
         if (discardMessage != null)
             discardMessage.gameObject.SetActive(false);
 
@@ -319,12 +375,10 @@ public class DiscardManager : MonoBehaviour
 
         if (confirmMessage != null)
         {
-            if (selectedCards.Count < recoverCount)
-                confirmMessage.text = $"まだ選べますが大丈夫ですか？（{selectedCards.Count}/{recoverCount}）";
-            else
-                confirmMessage.text = $"これを回収しますか？（{selectedCards.Count}/{recoverCount}）";
+            confirmMessage.text = $"これを回収しますか？（{selected}/{recoverCount}）";
         }
     }
+
     private void ShowDiscardWarning(string message, float duration = 1f)
     {
         if (discardMessage == null) return;
