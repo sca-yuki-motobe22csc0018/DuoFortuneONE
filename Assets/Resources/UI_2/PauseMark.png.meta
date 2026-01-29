@@ -1,10 +1,13 @@
 fileFormatVersion: 2
-guid: 1bf57eb0d8c296443a587f11634d379e
+guid: 7d1489a0bd9c7264f94f2f2ab90e9c77
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 4629333791197385439
-    second: "\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8 2026-01-24 095921_0"
+      213: 3920084367987665878
+    second: PauseMark_0
+  - first:
+      213: 2457078552791866035
+    second: PauseMark_1
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +116,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8 2026-01-24 095921_0"
+      name: PauseMark_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 411
-        height: 576
+        x: 807
+        y: 1392
+        width: 368
+        height: 971
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +131,30 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: fd2580b4e82be3040800000000000000
-      internalID: 4629333791197385439
+      spriteID: 6db677396ffe66630800000000000000
+      internalID: 3920084367987665878
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PauseMark_1
+      rect:
+        serializedVersion: 2
+        x: 1306
+        y: 1392
+        width: 368
+        height: 971
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3bad364fceb491220800000000000000
+      internalID: 2457078552791866035
       vertices: []
       indices: 
       edges: []
