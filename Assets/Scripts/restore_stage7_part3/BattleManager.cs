@@ -170,33 +170,50 @@ public class BattleManager : MonoBehaviour
                 else
                     yield return new WaitForSeconds(1.0f);
 
-                // マナ支払い
-                if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
-                {
-                    defender.UpdateEnergyUI();
-
-                    // Block効果処理
-                    bool attackNegated = false;
-                    yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
-
-                    if (attackNegated)
-                    {
-                        attackWasNegated = true;
-
-                        if (EffectProcessWindow.Instance != null)
-                            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃は Block により無効化されました。", 1.0f, false));
-                        else
-                            yield return new WaitForSeconds(1.0f);
-
-                        // ★ここで return/yield break はしない（後段で完了通知を送る）
-                    }
-                }
-                else
+                // ★追加：封印コストなら Block は使用できない（見た目はBlockWindow側でコスト不足扱い）
+                if (gm != null && gm.IsCostSealed(blockData.cost))
                 {
                     if (EffectProcessWindow.Instance != null)
                         yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("Blockカードを使用できません。", 1.0f, false));
                     else
                         yield return new WaitForSeconds(1.0f);
+                }
+                else
+                {
+                    // マナ支払い
+                    if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
+                    {
+                        defender.UpdateEnergyUI();
+
+                        // ★追加：BlockカードをHost手札リストから消して捨て札へ（handCountのズレ防止）
+                        if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
+                        {
+                            gm.ConsumeHandCardToDiscardHost(expectedBlockDefenderRef, blockData.id);
+                        }
+
+                        // Block効果処理
+                        bool attackNegated = false;
+                        yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
+
+                        if (attackNegated)
+                        {
+                            attackWasNegated = true;
+
+                            if (EffectProcessWindow.Instance != null)
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("攻撃は Block により無効化されました。", 1.0f, false));
+                            else
+                                yield return new WaitForSeconds(1.0f);
+
+                            // ★ここで return/yield break はしない（後段で完了通知を送る）
+                        }
+                    }
+                    else
+                    {
+                        if (EffectProcessWindow.Instance != null)
+                            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("Blockカードを使用できません。", 1.0f, false));
+                        else
+                            yield return new WaitForSeconds(1.0f);
+                    }
                 }
             }
             finally
@@ -312,11 +329,11 @@ public class BattleManager : MonoBehaviour
 
         string[] types = {
             blockCard.effectType1, blockCard.effectType2, blockCard.effectType3,
-            blockCard.effectType4, blockCard.effectType5, blockCard.effectType6, blockCard.effectType7
+            blockCard.effectType4, blockCard.effectType5, blockCard.effectType6, blockCard.effectType7,blockCard.effectType8
         };
         string[] values = {
             blockCard.effectValue1, blockCard.effectValue2, blockCard.effectValue3,
-            blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6, blockCard.effectType7
+            blockCard.effectValue4, blockCard.effectValue5, blockCard.effectValue6, blockCard.effectValue7,blockCard.effectValue8
         };
 
         bool hasAttack = false;
@@ -400,6 +417,20 @@ public class BattleManager : MonoBehaviour
                     hasAttack = true;
                     break;
 
+                // ApplyBlockEffect の switch(t) の中に追加（Draw の後あたりが分かりやすい）
+                case "SelectDiscardSelf":
+                    // value: "ALL" or number (e.g. "2")
+                    if (v == "ALL")
+                    {
+                        yield return StartCoroutine(DoSelectDiscardSelfFromBlock(defender, -1));
+                    }
+                    else if (int.TryParse(v, out int nDiscard))
+                    {
+                        yield return StartCoroutine(DoSelectDiscardSelfFromBlock(defender, nDiscard));
+                    }
+                    break;
+
+
                 default:
                     if (EffectProcessWindow.Instance != null)
                         yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"未対応のBlock効果: {t}(値: {v})", 1.0f, false));
@@ -461,6 +492,53 @@ public class BattleManager : MonoBehaviour
         }
 
         onNegateResult?.Invoke(negated);
+    }
+    // ============================================================
+    //  Block効果：SelectDiscardSelf（手札から指定枚数を選んで捨てる）
+    //  - HandDiscardSelectManager を開くのは「そのプレイヤーの入力権限側」だけ
+    //  - Host側は handCount の変化を待って処理を続行する
+    // ============================================================
+    private IEnumerator DoSelectDiscardSelfFromBlock(PlayerManager target, int requested)
+    {
+        if (target == null) yield break;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null) yield break;
+
+        // Attack処理はHostが回す前提
+        if (gm.Object == null || !gm.Object.HasStateAuthority) yield break;
+        if (gm.players == null) yield break;
+
+        int targetIndex = gm.players.IndexOf(target);
+        if (targetIndex < 0 || targetIndex >= gm.players.Count) yield break;
+
+        int before = target.handCount;
+        if (before <= 0) yield break;
+
+        int discardCount;
+        if (requested < 0)
+        {
+            discardCount = before; // ALL
+        }
+        else
+        {
+            discardCount = Mathf.Min(Mathf.Max(1, requested), before);
+        }
+
+        if (discardCount <= 0) yield break;
+
+        // 演出（短め）
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"手札から {discardCount} 枚捨てます。", 0.6f, false));
+        else
+            yield return new WaitForSeconds(0.6f);
+
+        // 選択UIを開く（実際に開くのは inputAuthority のクライアントだけ）
+        gm.RPC_OpenSelectDiscardSelf(targetIndex, discardCount);
+
+        // Hostは handCount が減るのを待つ（HandDiscardSelectManager→RPC_RequestDiscardFromHand で更新される）
+        int expected = before - discardCount;
+        yield return new WaitUntil(() => target.handCount == expected);
     }
 
     private bool SpendManaSafe(PlayerManager p, int cost)

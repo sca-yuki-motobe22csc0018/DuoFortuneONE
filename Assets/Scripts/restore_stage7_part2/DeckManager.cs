@@ -363,6 +363,8 @@ public class DeckManager : MonoBehaviour
                 effectValue6 = (values.Length > 19) ? values[19] : "0",
                 effectType7 = (values.Length > 20) ? values[20] : "",
                 effectValue7 = (values.Length > 21) ? values[21] : "0",
+                effectType8 = values.Length > 22 ? values[22] : "",
+                effectValue8 = values.Length > 23 ? values[23] : "0",
             };
 
             if (!cardDatabase.ContainsKey(data.id))

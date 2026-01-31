@@ -61,6 +61,9 @@ public class BlockWindow : MonoBehaviour
             Destroy(child.gameObject);
         generatedCards.Clear();
 
+        // GameManager（封印コスト判定用）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+
         // 手札からBlockカードを抽出
         if (player != null && player.handManager != null)
         {
@@ -80,19 +83,27 @@ public class BlockWindow : MonoBehaviour
                     if (ui != null)
                         ui.SetCard(data, 1, null, CardUISource.HandZone);
 
+                    // ===== 封印コスト/マナ不足は「選択不可」になるようにする =====
+                    bool isSealedCost = (gm != null && gm.IsCostSealed(data.cost));
+                    bool canUse = (player.currentMana >= data.cost) && !isSealedCost;
+
                     CanvasGroup grp = card.AddComponent<CanvasGroup>();
-                    if (player.currentMana < data.cost)
+                    if (!canUse)
                     {
                         grp.alpha = 0.5f;
                         grp.interactable = false;
+
+                        // ★重要：EventTriggerが付いていてもクリックされないようにする
+                        grp.blocksRaycasts = false;
                     }
                     else
                     {
                         grp.alpha = 1f;
                         grp.interactable = true;
+                        grp.blocksRaycasts = true;
                     }
 
-                    // クリックイベント登録
+                    // クリックイベント登録（blocksRaycasts=false のカードはここに来ない）
                     EventTrigger trigger = card.GetComponent<EventTrigger>();
                     if (trigger == null) trigger = card.AddComponent<EventTrigger>();
 
@@ -118,7 +129,16 @@ public class BlockWindow : MonoBehaviour
     private void OnCardClicked(GameObject cardObj, CardGenerator.CardData data)
     {
         if (data == null) return;
-        // ★ 追加：マナ不足のカードは選択不可
+
+        // ★追加：封印コストは選択不可（Useも不可）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm != null && gm.IsCostSealed(data.cost))
+        {
+            Debug.Log($"{data.name}：コスト {data.cost} は封印中のため選択不可");
+            return;
+        }
+
+        // ★既存：マナ不足のカードは選択不可
         if (currentPlayer != null && currentPlayer.currentMana < data.cost)
         {
             Debug.Log($"{data.name}：マナ不足のため選択不可");
@@ -135,7 +155,7 @@ public class BlockWindow : MonoBehaviour
             cardObj.transform.SetParent(blockCardParent, false);
             LayoutRebuilder.ForceRebuildLayoutImmediate(blockCardParent as RectTransform);
 
-            // ★ CardUIInteraction の originalScale を更新！
+            // CardUIInteraction の originalScale を更新
             var interaction = cardObj.GetComponent<CardUIInteraction>();
             if (interaction != null)
             {
@@ -159,7 +179,7 @@ public class BlockWindow : MonoBehaviour
             LayoutRebuilder.ForceRebuildLayoutImmediate(blockCardParent as RectTransform);
             selectedCardObj.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
 
-            // ★ 追加：戻したカードの CardUIInteraction.originalScale を更新
+            // 戻したカードの CardUIInteraction.originalScale を更新
             var interReturn = selectedCardObj.GetComponent<CardUIInteraction>();
             if (interReturn != null)
             {
@@ -169,18 +189,17 @@ public class BlockWindow : MonoBehaviour
             }
         }
 
-
         // --- 新しく選択 ---
         selectedCardObj = cardObj;
         selectedBlockData = data;
         cardObj.transform.SetParent(selectedCardParent, false);
 
-        // 選択時は1.0スケールで中央
+        // 選択時は 1.0 スケールで中央
         cardObj.transform.localScale = Vector3.one;
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
 
-        // originalScale更新（hover対応）
+        // originalScale 更新（hover対応）
         var inter = cardObj.GetComponent<CardUIInteraction>();
         if (inter != null)
         {
@@ -192,15 +211,25 @@ public class BlockWindow : MonoBehaviour
         useButton.interactable = true;
     }
 
-
-
-
     private void OnUseClicked()
     {
         if (selectedBlockData == null)
             return;
 
-        // ★ここが重要：Window内の複製じゃなく、手札の実体を消す
+        // ★追加：封印コスト/マナ不足なら使用処理に入らない（手札からも消さない）
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm != null && gm.IsCostSealed(selectedBlockData.cost))
+        {
+            Debug.Log($"{selectedBlockData.name}：コスト {selectedBlockData.cost} は封印中のため使用不可");
+            return;
+        }
+        if (currentPlayer != null && currentPlayer.currentMana < selectedBlockData.cost)
+        {
+            Debug.Log($"{selectedBlockData.name}：マナ不足のため使用不可");
+            return;
+        }
+
+        // ★ここが必要：Window内の複製じゃなく、手札の実体を消す
         if (currentPlayer != null && currentPlayer.handManager != null && currentPlayer.handManager.handCards != null)
         {
             GameObject handObj = null;
@@ -229,7 +258,6 @@ public class BlockWindow : MonoBehaviour
 
         onClose?.Invoke();
     }
-
 
     private void OnCancelClicked()
     {

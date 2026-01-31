@@ -85,8 +85,14 @@ public class DefenceWindow : MonoBehaviour
             Debug.LogWarning("DefenceWindow: uiCardPrefab か cardParent が未設定です。");
         }
 
-        // DEFENCE以外は使用ボタンを無効化
-        if (useButton != null) useButton.interactable = (cardData.type == "D");
+        bool isSealedCost = false;
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm != null && gm.IsCostSealed(cardData.cost))
+        {
+            isSealedCost = true;
+        }
+
+        if (useButton != null) useButton.interactable = (cardData.type == "D" && !isSealedCost);
 
         // --- プレイヤー入力待ち ---
         while (isWaiting)
@@ -102,7 +108,6 @@ public class DefenceWindow : MonoBehaviour
             var discard = GameManager.Instance.discardManager;
             if (discard != null)
             {
-                var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
                 var r = FindAnyObjectByType<NetworkRunner>();
                 if (gm != null && r != null)
                 {
@@ -121,7 +126,6 @@ public class DefenceWindow : MonoBehaviour
             Debug.Log("DEFENCEを発動しませんでした。");
 
             // 使わなかった場合 → Host経由で手札に加える（EX判定もここで確実にできる）
-            var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
             var r = FindAnyObjectByType<NetworkRunner>();
 
             if (gm != null && r != null)

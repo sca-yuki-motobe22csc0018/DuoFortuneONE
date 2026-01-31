@@ -50,6 +50,7 @@ public class CardGenerator : MonoBehaviour,
         public string effectType5;
         public string effectType6;
         public string effectType7;
+        public string effectType8;
 
         public string effectValue1;
         public string effectValue2;
@@ -58,6 +59,7 @@ public class CardGenerator : MonoBehaviour,
         public string effectValue5;
         public string effectValue6;
         public string effectValue7;
+        public string effectValue8;
     }
 
     [HideInInspector] public PlayerManager player;
@@ -250,6 +252,8 @@ public class CardGenerator : MonoBehaviour,
                 effectValue6 = values.Length > 19 ? values[19] : "0",
                 effectType7 = values.Length > 20 ? values[20] : "",
                 effectValue7 = values.Length > 21 ? values[21] : "0",
+                effectType8 = values.Length > 22 ? values[22] : "",
+                effectValue8 = values.Length > 23 ? values[23] : "0",
             };
 
             cardList.Add(data);
@@ -501,6 +505,13 @@ public class CardGenerator : MonoBehaviour,
             return false;
         }
 
+        // ★追加：このターン封印されているコストは使用できない
+        if (gm != null && gm.IsCostSealed(myData.cost))
+        {
+            Debug.Log($"このターンはコスト {myData.cost} のカードは使用できません。");
+            return false;
+        }
+
         // ★ Host に正式な支払いを依頼（Host自身も含む）
         var runner = FindAnyObjectByType<NetworkRunner>();
 
@@ -577,6 +588,7 @@ public class CardGenerator : MonoBehaviour,
             (myData.effectType5, myData.effectValue5),
             (myData.effectType6, myData.effectValue6),
             (myData.effectType7, myData.effectValue7),
+            (myData.effectType8, myData.effectValue8),
         };
 
             bool hasAttackEffect = false;
@@ -774,7 +786,9 @@ public class CardGenerator : MonoBehaviour,
                     break;
                 }
 
-
+            case "SealCost":
+                yield return StartCoroutine(DoSealCostDeclareRoutine(value));
+                break;
 
 
             case "Defence":
@@ -1228,6 +1242,33 @@ public class CardGenerator : MonoBehaviour,
         ui.StartSelectDiscardMode(player, count);
 
         yield return new WaitUntil(() => ui.IsComplete);
+    }
+
+
+    private IEnumerator DoSealCostDeclareRoutine(string value)
+    {
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+        if (gm == null || runner == null) yield break;
+
+        bool openToBoth = (value == "BOTH");
+
+        int beforeSession = gm.LocalSealSessionId;
+
+        // Hostへ開始要求（SELF or BOTH）
+        gm.RPC_RequestStartSealCostChoice(runner.LocalPlayer, openToBoth);
+
+        // セッションが開くのを待つ（RPC_OpenSealCostChoiceで LocalSealSessionId が更新される）
+        while (gm.LocalSealSessionId == beforeSession)
+            yield return null;
+
+        int sid = gm.LocalSealSessionId;
+
+        // 自分がOKを押す＆（BOTHなら相手もOK）→ Host確定→ RPC_Reveal を待つ
+        while (gm.LocalSealResolvedSessionId != sid)
+            yield return null;
+
+        yield break;
     }
 
     private void Update()

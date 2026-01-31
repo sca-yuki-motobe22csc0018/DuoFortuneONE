@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 
 
 
+
 public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
@@ -98,6 +99,35 @@ public class GameManager : NetworkBehaviour
 
     private List<int> _hostDeckIdsP0 = new List<int>(); // players[0]
     private List<int> _hostDeckIdsP1 = new List<int>(); // players[1]
+
+    // ============================
+    // コスト宣言（そのターン中、両者が該当コストを使えない）
+    // ============================
+    private readonly System.Collections.Generic.List<int> _sealedCostsThisTurn
+        = new System.Collections.Generic.List<int>();
+
+    private bool _sealSessionActive = false;
+    private bool _sealSessionExpectBoth = false;
+    private int _sealSessionId = 0;
+
+    private bool _sealSubmittedP0 = false;
+    private bool _sealSubmittedP1 = false;
+    private int _sealChoiceP0 = -1;
+    private int _sealChoiceP1 = -1;
+
+    // クライアント側待機用（ローカル）
+    private int _localSealSessionId = -1;
+    private int _localSealResolvedSessionId = -1;
+
+
+
+    public bool IsCostSealed(int cost)
+    {
+        return _sealedCostsThisTurn.Contains(cost);
+    }
+
+    public int LocalSealSessionId => _localSealSessionId;
+    public int LocalSealResolvedSessionId => _localSealResolvedSessionId;
 
     private List<int> GetLocalSelectedDeckIds()
     {
@@ -971,6 +1001,103 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    // 選択結果の提出（Client/Host → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_SubmitSealCostChoice(PlayerRef submitter, int sessionId, int cost)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (!_sealSessionActive) return;
+        if (sessionId != _sealSessionId) return;
+        if (cost < 1 || cost > 10) return;
+
+        int idx = FindPlayerIndexByRef(submitter);
+        if (idx < 0 || idx >= players.Count) return;
+
+        if (idx == 0)
+        {
+            _sealSubmittedP0 = true;
+            _sealChoiceP0 = cost;
+        }
+        else if (idx == 1)
+        {
+            _sealSubmittedP1 = true;
+            _sealChoiceP1 = cost;
+        }
+
+        // SELFモード：提出した時点で確定
+        if (!_sealSessionExpectBoth)
+        {
+            FinalizeSealSessionHost();
+            return;
+        }
+
+        // BOTHモード：両方提出で確定
+        if (_sealSubmittedP0 && _sealSubmittedP1)
+        {
+            FinalizeSealSessionHost();
+        }
+    }
+
+    private void FinalizeSealSessionHost()
+    {
+        // このターンの封印コストに追加（重複は除外）
+        if (_sealSubmittedP0 && _sealChoiceP0 >= 1 && _sealChoiceP0 <= 10 && !_sealedCostsThisTurn.Contains(_sealChoiceP0))
+            _sealedCostsThisTurn.Add(_sealChoiceP0);
+
+        if (_sealSubmittedP1 && _sealChoiceP1 >= 1 && _sealChoiceP1 <= 10 && !_sealedCostsThisTurn.Contains(_sealChoiceP1))
+            _sealedCostsThisTurn.Add(_sealChoiceP1);
+
+        // ★修正：sealed は予約語なので変数名にしない
+        int[] sealedCosts = _sealedCostsThisTurn.ToArray();
+
+        RPC_RevealSealCostChoices(
+            _sealSessionId,
+            _sealChoiceP0,
+            _sealChoiceP1,
+            _sealSubmittedP0,
+            _sealSubmittedP1,
+            sealedCosts
+        );
+
+        _sealSessionActive = false;
+        _sealSessionExpectBoth = false;
+    }
+
+    // 確定結果を全員へ（Host → All）
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_RevealSealCostChoices(int sessionId, int cost0, int cost1, bool has0, bool has1, int[] sealedCosts)
+    {
+        // ローカル保持（IsCostSealedで参照）
+        _sealedCostsThisTurn.Clear();
+        if (sealedCosts != null) _sealedCostsThisTurn.AddRange(sealedCosts);
+
+        _localSealResolvedSessionId = sessionId;
+
+        // 自分の表示（常時表示）
+        var localPm = GetLocalPlayerManager();
+        if (localPm != null && localPm.costSealDeclareUI != null)
+        {
+            // 中央に「宣言：2，10」などを表示（同時宣言っぽく）
+            string reveal = BuildRevealText(cost0, cost1, has0, has1);
+            localPm.costSealDeclareUI.ShowReveal(reveal, sealedCosts);
+        }
+    }
+
+    private string BuildRevealText(int cost0, int cost1, bool has0, bool has1)
+    {
+        // 両方or片方の表示を組み立て
+        System.Collections.Generic.List<int> list = new System.Collections.Generic.List<int>();
+        if (has0 && cost0 >= 1 && cost0 <= 10) list.Add(cost0);
+        if (has1 && cost1 >= 1 && cost1 <= 10) list.Add(cost1);
+
+        if (list.Count == 0) return "";
+        string s = string.Join("，", list.Distinct().OrderBy(x => x));
+        return $"宣言：{s}";
+    }
+
+
+
+
     // ============================================================
     //  ターンを進める（Hostだけ）
     // ============================================================
@@ -982,7 +1109,12 @@ public class GameManager : NetworkBehaviour
 
         if (currentPlayerIndex == 0)
             turnNumber++;
+
+        // ★追加：ターンが進んだら封印コストをクリア（そのターン中）
+        _sealedCostsThisTurn.Clear();
+        RPC_RevealSealCostChoices(-1, -1, -1, false, false, new int[0]);
     }
+
 
     [Rpc(sources: RpcSources.All, targets: RpcTargets.StateAuthority)]
     private void Rpc_RequestNextTurn()
@@ -1982,6 +2114,110 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    // 宣言セッション開始要求（Client/Host → Host）
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestStartSealCostChoice(PlayerRef requester, bool openToBoth)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+
+        // すでに進行中なら無視（多重開始防止）
+        if (_sealSessionActive) return;
+
+        _sealSessionActive = true;
+        _sealSessionExpectBoth = openToBoth;
+        _sealSessionId++;
+
+        _sealSubmittedP0 = false;
+        _sealSubmittedP1 = false;
+        _sealChoiceP0 = -1;
+        _sealChoiceP1 = -1;
+
+        // 開く相手：SELFなら requester のみ、BOTHなら両方
+        RPC_OpenSealCostChoice(_sealSessionId, requester, openToBoth);
+    }
+
+    // UIを開く（Host → All）
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_OpenSealCostChoice(int sessionId, PlayerRef requester, bool openToBoth)
+    {
+        _localSealSessionId = sessionId;
+        _localSealResolvedSessionId = -1;
+
+        // 自分のPlayerManager（InputAuthority）のUIだけ開く
+        var localPm = GetLocalPlayerManager();
+        if (localPm == null || localPm.costSealDeclareUI == null) return;
+
+        // BOTHなら全員開く（各端末は自分のCanvasしか出てないので結果的に自分だけ開く）
+        // SELFなら requester本人の端末だけ開く
+        if (openToBoth)
+        {
+            localPm.costSealDeclareUI.Open(sessionId);
+        }
+        else
+        {
+            if (runner == null) runner = FindAnyObjectByType<NetworkRunner>();
+            if (runner != null && runner.LocalPlayer == requester)
+            {
+                localPm.costSealDeclareUI.Open(sessionId);
+            }
+        }
+    }
+
+    // ローカルのPlayerManager取得（自分視点）
+    private PlayerManager GetLocalPlayerManager()
+    {
+        if (players == null) return null;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pm = players[i];
+            if (pm != null && pm.Object != null && pm.Object.HasInputAuthority)
+                return pm;
+        }
+        return null;
+    }
+
+
+    // RPC_OpenBlockChoice のすぐ後あたりに追加するのが分かりやすい
+    // ============================================================
+    //  ★追加：手札捨て選択UIを開く（SelectDiscardSelf用）
+    //  - broadcastするが、実際にUIを開くのは inputAuthority のクライアントだけ
+    // ============================================================
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_OpenSelectDiscardSelf(int targetIndex, int discardCount)
+    {
+        if (players == null) return;
+        if (targetIndex < 0 || targetIndex >= players.Count) return;
+
+        var ui = FindAnyObjectByType<HandDiscardSelectManager>();
+        if (ui == null) return;
+
+        ui.StartSelectDiscardMode(players[targetIndex], discardCount);
+    }
+
+    // RPC_RequestAddDiscard の直前あたりに追加
+    // ============================================================
+    //  ★追加：Host手札リストからカードを消して捨て札へ（BlockなどHost処理で使う用）
+    //  - RPCの待ちでhandCountがズレないよう「即時に」更新する
+    // ============================================================
+    public void ConsumeHandCardToDiscardHost(PlayerRef ownerRef, int cardId)
+    {
+        if (Object == null || !Object.HasStateAuthority) return;
+
+        int ownerIndex = FindPlayerIndexByRef(ownerRef);
+        if (ownerIndex < 0) return;
+
+        var list = GetHostHandIdList(ownerIndex);
+        if (list == null) return;
+
+        // 既に消えている場合は二重追加を避ける
+        if (!list.Remove(cardId)) return;
+
+        if (players != null && ownerIndex >= 0 && ownerIndex < players.Count && players[ownerIndex] != null)
+            players[ownerIndex].handCount = list.Count;
+
+        RPC_SyncAddDiscard(cardId);
+    }
 
 
     // ============================================================

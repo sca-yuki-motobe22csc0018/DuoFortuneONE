@@ -34,6 +34,9 @@ public class PlayerManager : NetworkBehaviour
     public HandManager handManager;
     public LifeManager lifeManager;
 
+    // ★追加：コスト宣言UI（PlayerPrefab内）
+    public CostSealDeclareUI costSealDeclareUI;
+
     // GameManager・相手プレイヤー参照用
     public GameManager gameManager;
     public PlayerManager opponent;
@@ -102,6 +105,10 @@ public class PlayerManager : NetworkBehaviour
         // 自分のCanvasだけ ON
         if (energyText != null)
             energyText.transform.root.gameObject.SetActive(Object.HasInputAuthority);
+
+        // ★追加：念のため初期は閉じる
+        if (costSealDeclareUI != null)
+            costSealDeclareUI.Close();
 
         UpdateEnergyUI();
         UpdateOpponentUI();
