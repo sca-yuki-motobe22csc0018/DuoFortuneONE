@@ -692,6 +692,10 @@ public class CardGenerator : MonoBehaviour,
                     yield return StartCoroutine(DoDrawRoutine(drawCount));
                 break;
 
+            case "ChoiceMulti":
+                yield return StartCoroutine(DoChoiceMultiRoutine(value));
+                break;
+
             case "ManaBoost":
                 if (int.TryParse(value, out int boost))
                     yield return StartCoroutine(DoManaBoostRoutine(boost));
@@ -1270,6 +1274,185 @@ public class CardGenerator : MonoBehaviour,
 
         yield break;
     }
+
+    // ============================================================
+    //  ChoiceMulti
+    //  effectValue 例：
+    //   P=3;M=2;
+    //   O1=エネルギーの最大値＋１=>ManaBoost:1;
+    //   O2=２ドローし、手札を１枚捨てる=>Draw:2|SelectDiscardSelf:1;
+    //   O3=相手の手札をランダムに１枚捨てさせる=>RandomDiscardOpponent:1
+    // ============================================================
+
+    private class ChoiceMultiOptionDef
+    {
+        public string text;
+        public List<(string type, string value)> effects = new List<(string type, string value)>();
+    }
+
+    private bool TryParseChoiceMultiValue(string raw, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef> options)
+    {
+        pickMax = 0;
+        sameMax = 0;
+        options = new List<ChoiceMultiOptionDef>();
+
+        if (string.IsNullOrEmpty(raw)) return false;
+
+        string[] parts = raw.Split(new char[] { ';', '；', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var p0 in parts)
+        {
+            string p = (p0 ?? "").Trim();
+            if (string.IsNullOrEmpty(p)) continue;
+
+            // P= / Pick=
+            if (p.StartsWith("P=", System.StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("Pick=", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq >= 0 && int.TryParse(p.Substring(eq + 1).Trim(), out int pv))
+                    pickMax = pv;
+                continue;
+            }
+
+            // M= / Max=
+            if (p.StartsWith("M=", System.StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("Max=", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq >= 0 && int.TryParse(p.Substring(eq + 1).Trim(), out int mv))
+                    sameMax = mv;
+                continue;
+            }
+
+            // Option: O1=...=>Type:Val|Type:Val
+            if (p.StartsWith("O", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq < 0) continue;
+
+                string rhs = p.Substring(eq + 1);
+                if (string.IsNullOrEmpty(rhs)) continue;
+
+                string display = rhs;
+                string effectChain = "";
+
+                int arrow = rhs.IndexOf("=>", System.StringComparison.Ordinal);
+                if (arrow >= 0)
+                {
+                    display = rhs.Substring(0, arrow);
+                    effectChain = rhs.Substring(arrow + 2);
+                }
+                else
+                {
+                    // 代替：最初の | で区切る
+                    int bar = rhs.IndexOf('|');
+                    if (bar >= 0)
+                    {
+                        display = rhs.Substring(0, bar);
+                        effectChain = rhs.Substring(bar + 1);
+                    }
+                }
+
+                display = (display ?? "").Trim();
+                effectChain = (effectChain ?? "").Trim();
+
+                var opt = new ChoiceMultiOptionDef();
+                opt.text = display;
+
+                if (!string.IsNullOrEmpty(effectChain))
+                {
+                    string[] effs = effectChain.Split(new char[] { '|', '｜' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var e0 in effs)
+                    {
+                        string e = (e0 ?? "").Trim();
+                        if (string.IsNullOrEmpty(e)) continue;
+
+                        int colon = e.IndexOf(':');
+                        string t = (colon >= 0) ? e.Substring(0, colon).Trim() : e;
+                        string v = (colon >= 0) ? e.Substring(colon + 1).Trim() : "";
+
+                        if (!string.IsNullOrEmpty(t))
+                            opt.effects.Add((t, v));
+                    }
+                }
+
+                options.Add(opt);
+            }
+        }
+
+        if (pickMax <= 0) pickMax = 1;
+        if (sameMax <= 0) sameMax = 1;
+
+        pickMax = Mathf.Clamp(pickMax, 1, 4);
+        sameMax = Mathf.Clamp(sameMax, 1, 4);
+
+        if (options.Count < 2) return false;
+        if (options.Count > 4) options = options.GetRange(0, 4);
+
+        return true;
+    }
+
+    private IEnumerator DoChoiceMultiRoutine(string rawValue)
+    {
+        // ★ 選択UIは「このカードを使ったプレイヤー」だけ出す
+        if (player == null || player.Object == null || !player.Object.HasInputAuthority)
+            yield break;
+
+        var window = MultiChoiceWindow.Get();
+        if (window == null)
+        {
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("MultiChoiceWindow がシーン上に存在しません（Canvas配下に配置されているか確認）。", 1.0f, false));
+            yield break;
+        }
+
+        if (!TryParseChoiceMultiValue(rawValue, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef> options))
+        {
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti value が不正です: {rawValue}", 1.0f, false));
+            yield break;
+        }
+
+        bool confirmed = false;
+        int[] pickedCounts = null;
+
+        string[] optionTexts = new string[options.Count];
+        for (int i = 0; i < options.Count; i++) optionTexts[i] = options[i].text;
+
+        string fullText = (myData != null) ? myData.text : "";
+
+        window.Open(fullText, optionTexts, pickMax, sameMax, (arr) =>
+        {
+            pickedCounts = arr;
+            confirmed = true;
+        });
+
+        yield return new WaitUntil(() => confirmed && pickedCounts != null);
+
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("選択した効果を上から順番に実行します。", 0.4f, false));
+
+        // 「文章の上から順番」＝ options の順で回す
+        for (int i = 0; i < options.Count; i++)
+        {
+            int times = (i < pickedCounts.Length) ? pickedCounts[i] : 0;
+            if (times <= 0) continue;
+
+            for (int rep = 0; rep < times; rep++)
+            {
+                if (!string.IsNullOrEmpty(options[i].text) && EffectProcessWindow.Instance != null)
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"選択: {options[i].text}", 0.25f, true));
+
+                foreach (var eff in options[i].effects)
+                {
+                    if (string.IsNullOrEmpty(eff.type)) continue;
+                    yield return StartCoroutine(ApplyEffect(eff.type, eff.value));
+                }
+            }
+        }
+    }
+
 
     private void Update()
     {

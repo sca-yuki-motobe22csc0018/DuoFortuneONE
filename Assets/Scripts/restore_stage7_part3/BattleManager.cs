@@ -417,6 +417,11 @@ public class BattleManager : MonoBehaviour
                     hasAttack = true;
                     break;
 
+                case "ChoiceMulti":
+                    // ※ Block効果中の ChoiceMulti は「入力権限がある側（=この端末のプレイヤー）」のみ実行（まずは最低限）
+                    yield return StartCoroutine(DoChoiceMultiBlockRoutine(defender, attacker, blockCard, v));
+                    break;
+
                 // ApplyBlockEffect の switch(t) の中に追加（Draw の後あたりが分かりやすい）
                 case "SelectDiscardSelf":
                     // value: "ALL" or number (e.g. "2")
@@ -570,6 +575,220 @@ public class BattleManager : MonoBehaviour
             return false;
         }
     }
+
+    // ============================================================
+    //  ChoiceMulti（Block効果内での最低限対応）
+    //  - defender がこの端末の InputAuthority を持つ場合のみ UI を開いて実行します
+    //  - まだ「相手側クライアントにUIを開かせる」同期までは実装していません
+    // ============================================================
+
+    private class ChoiceMultiOptionDef_BM
+    {
+        public string text;
+        public List<(string type, string value)> effects = new List<(string type, string value)>();
+    }
+
+    private bool TryParseChoiceMultiValue_BM(string raw, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef_BM> options)
+    {
+        pickMax = 0;
+        sameMax = 0;
+        options = new List<ChoiceMultiOptionDef_BM>();
+
+        if (string.IsNullOrEmpty(raw)) return false;
+
+        string[] parts = raw.Split(new char[] { ';', '；', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var p0 in parts)
+        {
+            string p = (p0 ?? "").Trim();
+            if (string.IsNullOrEmpty(p)) continue;
+
+            if (p.StartsWith("P=", System.StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("Pick=", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq >= 0 && int.TryParse(p.Substring(eq + 1).Trim(), out int pv))
+                    pickMax = pv;
+                continue;
+            }
+
+            if (p.StartsWith("M=", System.StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("Max=", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq >= 0 && int.TryParse(p.Substring(eq + 1).Trim(), out int mv))
+                    sameMax = mv;
+                continue;
+            }
+
+            if (p.StartsWith("O", System.StringComparison.OrdinalIgnoreCase))
+            {
+                int eq = p.IndexOf('=');
+                if (eq < 0) continue;
+
+                string rhs = p.Substring(eq + 1);
+                if (string.IsNullOrEmpty(rhs)) continue;
+
+                string display = rhs;
+                string effectChain = "";
+
+                int arrow = rhs.IndexOf("=>", System.StringComparison.Ordinal);
+                if (arrow >= 0)
+                {
+                    display = rhs.Substring(0, arrow);
+                    effectChain = rhs.Substring(arrow + 2);
+                }
+                else
+                {
+                    int bar = rhs.IndexOf('|');
+                    if (bar >= 0)
+                    {
+                        display = rhs.Substring(0, bar);
+                        effectChain = rhs.Substring(bar + 1);
+                    }
+                }
+
+                display = (display ?? "").Trim();
+                effectChain = (effectChain ?? "").Trim();
+
+                var opt = new ChoiceMultiOptionDef_BM();
+                opt.text = display;
+
+                if (!string.IsNullOrEmpty(effectChain))
+                {
+                    string[] effs = effectChain.Split(new char[] { '|', '｜' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var e0 in effs)
+                    {
+                        string e = (e0 ?? "").Trim();
+                        if (string.IsNullOrEmpty(e)) continue;
+
+                        int colon = e.IndexOf(':');
+                        string t = (colon >= 0) ? e.Substring(0, colon).Trim() : e;
+                        string v = (colon >= 0) ? e.Substring(colon + 1).Trim() : "";
+
+                        if (!string.IsNullOrEmpty(t))
+                            opt.effects.Add((t, v));
+                    }
+                }
+
+                options.Add(opt);
+            }
+        }
+
+        if (pickMax <= 0) pickMax = 1;
+        if (sameMax <= 0) sameMax = 1;
+
+        pickMax = Mathf.Clamp(pickMax, 1, 4);
+        sameMax = Mathf.Clamp(sameMax, 1, 4);
+
+        if (options.Count < 2) return false;
+        if (options.Count > 4) options = options.GetRange(0, 4);
+
+        return true;
+    }
+
+    private IEnumerator DoChoiceMultiBlockRoutine(PlayerManager defender, PlayerManager attacker, CardGenerator.CardData sourceCard, string rawValue)
+    {
+        if (defender == null || defender.Object == null) yield break;
+
+        if (!defender.Object.HasInputAuthority)
+        {
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("ChoiceMulti(Block内)は現在、選択者の端末でのみ実行します（Host=選択者の場合のみ）。", 1.0f, false));
+            yield break;
+        }
+
+        if (!TryParseChoiceMultiValue_BM(rawValue, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef_BM> options))
+        {
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti value が不正です: {rawValue}", 1.0f, false));
+            yield break;
+        }
+
+        var window = FindAnyObjectByType<MultiChoiceWindow>();
+        if (window == null)
+        {
+            if (EffectProcessWindow.Instance != null)
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("MultiChoiceWindow が見つかりません。", 1.0f, false));
+            yield break;
+        }
+
+        bool confirmed = false;
+        int[] pickedCounts = null;
+
+        string[] optionTexts = new string[options.Count];
+        for (int i = 0; i < options.Count; i++) optionTexts[i] = options[i].text;
+
+        string fullText = (sourceCard != null) ? sourceCard.text : "";
+
+        window.Open(fullText, optionTexts, pickMax, sameMax, (arr) =>
+        {
+            pickedCounts = arr;
+            confirmed = true;
+        });
+
+        yield return new WaitUntil(() => confirmed && pickedCounts != null);
+
+        // Block中のChoiceMultiは「UIが要らない効果だけ」最低限実行
+        // （SelectDiscardSelf / RecoverDiscard などは必要になったらRPCで拡張）
+        for (int i = 0; i < options.Count; i++)
+        {
+            int times = (i < pickedCounts.Length) ? pickedCounts[i] : 0;
+            if (times <= 0) continue;
+
+            for (int rep = 0; rep < times; rep++)
+            {
+                foreach (var eff in options[i].effects)
+                {
+                    string t = eff.type;
+                    string v = eff.value;
+                    var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                    if (string.IsNullOrEmpty(t)) continue;
+
+                    switch (t)
+                    {
+                        case "Draw":
+                            if (int.TryParse(v, out int dn))
+                            {
+                                for (int d = 0; d < dn; d++)
+                                    gm.EffectDraw(defender, 1);
+                            }
+                            break;
+
+                        case "ManaBoost":
+                            if (int.TryParse(v, out int mb))
+                                gm.EffectManaBoost(defender, mb);
+                            break;
+
+                        case "ManaRecover":
+                            if (int.TryParse(v, out int mr))
+                                gm.EffectManaRecover(defender, mr, false);
+                            break;
+
+                        case "RandomDiscardOpponent":
+                            if (int.TryParse(v, out int rd) && attacker != null && attacker.Object != null)
+                                gm.RPC_RequestRandomDiscard(defender.Object.InputAuthority, attacker.Object.InputAuthority, rd);
+                            break;
+
+                        case "SelectDiscardSelf":
+                        case "RecoverDiscard":
+                        case "StealRandomOpponent":
+                            if (EffectProcessWindow.Instance != null)
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"Block内の {t} はまだ未対応です。", 0.8f, false));
+                            break;
+
+                        default:
+                            if (EffectProcessWindow.Instance != null)
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"Block内 ChoiceMulti: 未対応の効果 {t}({v})", 0.8f, false));
+                            break;
+                    }
+
+                    yield return null;
+                }
+            }
+        }
+    }
+
 
     private void SendBlockToDiscard(PlayerManager defender, CardGenerator.CardData blockCard)
     {

@@ -7502,7 +7502,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cards: []
   csvFileName: Card_Data_beta.csv
-  numOfCards: 41
+  numOfCards: 45
 --- !u!4 &1768198021
 Transform:
   m_ObjectHideFlags: 0
