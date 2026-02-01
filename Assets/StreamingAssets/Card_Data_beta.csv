@@ -108,7 +108,7 @@ O3=相手の手札をランダムに１枚捨てさせる。=>RandomDiscardOppon
 エネルギーの最大値＋１。",3009,Defence,1,ManaReduceOpponent,1,ManaBoost,1,,,,,,,,,,,,,,
 3010,ど派手な義賊・五右衛門,ハデハデシーフ・ごえもん,D,R,7,"自分のターンならエネルギーの最大値をー３。
 相手の手札をランダムに４枚奪う。
-エネルギーを３回復。",3010,Defence,1,ManaReduceIfMyTurn,3,StealRandomOpponent,4,ManaRecover,3,,,,,,,,,,,,
+エネルギーを２回復。",3010,Defence,1,ManaReduceIfMyTurn,3,StealRandomOpponent,4,ManaRecover,2,,,,,,,,,,,,
 3012,計画的混沌の訪れ,けいかくてきこんとんのおとずれ,D,R,4,"自分のターンならエネルギーの最大値をー１。
 ２枚ドロー。
 自分と相手の手札を入れ替える。
@@ -139,9 +139,9 @@ O1=３枚ドローし、手札を２枚捨てる。=>Draw:3|SelectDiscardSelf:2;
 O2=相手の手札をランダムに１枚奪う。=>StealRandomOpponent:1;
 O3=捨て札から１枚加える。=>RecoverDiscard:1;
 O4=エネルギーを２回復。=>ManaRecover:2",,,,,,,,,,,,,,
-3022,緊急脱出ボタン,ポチっとな,D,R,2,"３枚ドローし、手札を２枚捨てる。
+3022,緊急脱出ボタン,ポチっとな,D,R,2,"２枚ドロー。
 エネルギーを２回復。
-自分のターンならターンを終了する。",3022,Defence,1,Draw,3,SelectDiscardSelf,2,ManaRecover,2,EndTurn,1,,,,,,,,,,
+自分のターンならターンを終了する。",3022,Defence,1,Draw,2,ManaRecover,2,EndTurn,1,,,,,,,,,,,,
 3023,cmd:crd/sqc,コマンド：シード・スカーク,D,R,9,"自分のターンならエネルギーの最大値をー３。
 自分の手札を全て捨てる。
 相手の手札を全て奪う。",3023,Defence,1,ManaReduceIfMyTurn,3,RandomDiscardSelf,100,StealRandomOpponent,100,,,,,,,,,,,,
