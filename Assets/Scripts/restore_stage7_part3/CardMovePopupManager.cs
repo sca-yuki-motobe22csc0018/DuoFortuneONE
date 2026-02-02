@@ -2,6 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using TMPro;
+using UnityEngine.UI;
+
 
 public class CardMovePopupManager : MonoBehaviour
 {
@@ -25,6 +28,15 @@ public class CardMovePopupManager : MonoBehaviour
     public GameObject discardRoot;
     public Transform discardContent; // ScrollRectのContent想定（GridLayoutGroup等）
 
+    [Header("Steal (local only)")]
+    public GameObject stealRoot;
+    public Transform stealContent;
+    public TMP_Text stealTitleText;
+    public float stealShowSeconds = 1.5f;
+
+    private Coroutine stealCo;
+
+
     private Coroutine drawCo;
     private Coroutine recoverCo;
     private Coroutine discardCo;
@@ -47,26 +59,17 @@ public class CardMovePopupManager : MonoBehaviour
 
     public void HideAllImmediate()
     {
-        // ▼追加：表示中コルーチンを止める（残り表示や上書き競合を防ぐ）
-        if (drawCo != null) StopCoroutine(drawCo);
-        if (recoverCo != null) StopCoroutine(recoverCo);
-        if (discardCo != null) StopCoroutine(discardCo);
-        if (drawKeepAliveCo != null) StopCoroutine(drawKeepAliveCo);
-
-        drawCo = null;
-        recoverCo = null;
-        discardCo = null;
-        drawKeepAliveCo = null;
-        drawLastAddUnscaledTime = 0f;
-
         if (drawRoot) drawRoot.SetActive(false);
         if (recoverRoot) recoverRoot.SetActive(false);
         if (discardRoot) discardRoot.SetActive(false);
+        if (stealRoot) stealRoot.SetActive(false);
 
         ClearChildren(drawContent);
         ClearChildren(recoverContent);
         ClearChildren(discardContent);
+        ClearChildren(stealContent);
     }
+
 
 
     // ----------------------------
@@ -205,6 +208,22 @@ public class CardMovePopupManager : MonoBehaviour
         root.SetActive(false);
         ClearChildren(content);
     }
+
+    public void ShowStealCards(int[] cardIds, bool isThief)
+    {
+        if (cardIds == null || cardIds.Length == 0) return;
+        if (uiCardPrefab == null) return;
+
+        // Steal UIが未設定なら何もしない（ここは要望どおり「新UI前提」でOK）
+        if (stealRoot == null || stealContent == null) return;
+
+        if (stealTitleText != null)
+            stealTitleText.text = isThief ? "奪ったカード" : "奪われたカード";
+
+        if (stealCo != null) StopCoroutine(stealCo);
+        stealCo = StartCoroutine(ShowRoutine_Simple(stealRoot, stealContent, cardIds, stealShowSeconds, groupCounts: true));
+    }
+
 
     private void SpawnUICard(Transform parent, int cardId, int count)
     {

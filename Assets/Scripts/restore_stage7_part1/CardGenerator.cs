@@ -775,6 +775,24 @@ public class CardGenerator : MonoBehaviour,
                     }
                     break;
                 }
+
+            // ★追加：相手の手札をランダムに奪う
+            case "StealRandomOpponent":
+                {
+                    int cnt = 1;
+                    int.TryParse(value, out cnt);
+                    cnt = Mathf.Max(1, cnt);
+
+                    var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                    var runner = FindAnyObjectByType<NetworkRunner>();
+
+                    if (gm != null && runner != null && player != null && player.opponent != null && player.opponent.Object != null)
+                    {
+                        gm.RPC_RequestStealRandomOpponent(runner.LocalPlayer, player.opponent.Object.InputAuthority, cnt);
+                    }
+                    break;
+                }
+
             case "SelectDiscardSelf":
                 {
                     // "ALL" 対応：全部捨てる
@@ -794,19 +812,18 @@ public class CardGenerator : MonoBehaviour,
                 yield return StartCoroutine(DoSealCostDeclareRoutine(value));
                 break;
 
-
             case "Defence":
                 yield return StartCoroutine(DoDefenceRoutine());
                 break;
 
             default:
-                // 未対応でも必ず Next を出して止める
                 yield return EffectProcessWindow.Instance.ShowProcessAuto(
                     $"未対応の効果: {type} はまだ実装されていません。", 0.6f, false
                 );
                 break;
         }
     }
+
 
     // ★★ ここをネット対応版に変更済み ★★
     void DoDraw(int count)

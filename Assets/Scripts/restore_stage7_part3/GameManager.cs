@@ -2219,6 +2219,238 @@ public class GameManager : NetworkBehaviour
         RPC_SyncAddDiscard(cardId);
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_OpenChoiceMulti(PlayerRef chooserRef, int sessionId, int sourceCardId, string rawValue)
+    {
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) return;
+
+        // 選択者以外は閉じる
+        if (r.LocalPlayer != chooserRef)
+        {
+            var w = MultiChoiceWindow.Get();
+            if (w != null) w.Hide();
+            return;
+        }
+
+        int chooserIndex = FindPlayerIndexByRef(chooserRef);
+        if (chooserIndex < 0) return;
+
+        StartCoroutine(Co_ChoiceMultiChoice(sessionId, chooserIndex, sourceCardId, rawValue));
+    }
+
+    private IEnumerator Co_ChoiceMultiChoice(int sessionId, int chooserIndex, int sourceCardId, string rawValue)
+    {
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null) yield break;
+
+        var window = MultiChoiceWindow.Get();
+        if (window == null) yield break;
+
+        // UI用に rawValue を解析（選択回数/同一上限/文章だけ）
+        if (!TryParseChoiceMultiValue_ForUI(rawValue, out int pickMax, out int sameMax, out string[] optionTexts))
+        {
+            // 解析できない場合は空で返す（Host側で無視）
+            RPC_SubmitChoiceMulti(sessionId, r.LocalPlayer, new int[0]);
+            yield break;
+        }
+
+        // カード本文（CSVのText）を表示
+        string fullText = "";
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (deckManager != null && sourceCardId >= 0)
+        {
+            var data = deckManager.GetCardDataById(sourceCardId);
+            if (data != null) fullText = data.text;
+        }
+
+        bool confirmed = false;
+        int[] pickedCounts = null;
+
+        window.Open(fullText, optionTexts, pickMax, sameMax, (arr) =>
+        {
+            pickedCounts = arr;
+            confirmed = true;
+        });
+
+        yield return new WaitUntil(() => confirmed && pickedCounts != null);
+
+        RPC_SubmitChoiceMulti(sessionId, r.LocalPlayer, pickedCounts);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_SubmitChoiceMulti(int sessionId, PlayerRef chooserRef, int[] pickedCounts)
+    {
+        if (battleManager == null) return;
+        battleManager.ReceiveChoiceMultiResult(sessionId, chooserRef, pickedCounts);
+    }
+
+    private bool TryParseChoiceMultiValue_ForUI(string raw, out int pickMax, out int sameMax, out string[] optionTexts)
+    {
+        pickMax = 0;
+        sameMax = 0;
+        optionTexts = null;
+
+        if (string.IsNullOrEmpty(raw)) return false;
+
+        List<string> opts = new List<string>();
+
+        string[] parts = raw.Split(new char[] { ';', '；', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var p in parts)
+        {
+            string s = p.Trim();
+            if (string.IsNullOrEmpty(s)) continue;
+
+            if (s.StartsWith("P="))
+            {
+                int.TryParse(s.Substring(2), out pickMax);
+                continue;
+            }
+            if (s.StartsWith("S="))
+            {
+                int.TryParse(s.Substring(2), out sameMax);
+                continue;
+            }
+
+            // O1=文章=>効果... の「文章」だけ拾う
+            if (s.StartsWith("O"))
+            {
+                int eq = s.IndexOf('=');
+                string body = (eq >= 0) ? s.Substring(eq + 1) : s;
+
+                int arrow = body.IndexOf("=>");
+                string text = (arrow >= 0) ? body.Substring(0, arrow) : body;
+
+                text = text.Trim();
+                if (!string.IsNullOrEmpty(text))
+                    opts.Add(text);
+            }
+        }
+
+        if (pickMax <= 0) pickMax = 1;
+        if (sameMax <= 0) sameMax = 1;
+
+        if (opts.Count <= 0) return false;
+
+        optionTexts = opts.ToArray();
+        return true;
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestStealRandomOpponent(PlayerRef thiefRef, PlayerRef victimRef, int count)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+
+        int thiefIndex = FindPlayerIndexByRef(thiefRef);
+        int victimIndex = FindPlayerIndexByRef(victimRef);
+        if (thiefIndex < 0 || victimIndex < 0) return;
+        if (thiefIndex == victimIndex) return;
+
+        if (count <= 0) return;
+
+        var victimList = GetHostHandIdList(victimIndex);
+        var thiefList = GetHostHandIdList(thiefIndex);
+        if (victimList == null || thiefList == null) return;
+        if (victimList.Count == 0) return;
+
+        int n = Mathf.Min(count, victimList.Count);
+
+        List<int> stolen = new List<int>(n);
+
+        // Hostがランダムに確定：相手手札 → 自分手札（捨て札には入れない）
+        for (int i = 0; i < n; i++)
+        {
+            int idx = UnityEngine.Random.Range(0, victimList.Count);
+            int id = victimList[idx];
+
+            victimList.RemoveAt(idx);
+            thiefList.Add(id);
+
+            stolen.Add(id);
+        }
+
+        // handCount確定（Networked）
+        if (players[victimIndex] != null) players[victimIndex].handCount = victimList.Count;
+        if (players[thiefIndex] != null) players[thiefIndex].handCount = thiefList.Count;
+
+        // 同期（表示＋手札実体増減）
+        RPC_SyncStealRandomOpponent(thiefIndex, victimIndex, stolen.ToArray());
+
+        // ★重要：奪ってEX_001が揃うケースの勝利判定
+        TryCheckEx001Win(thiefIndex);
+    }
+
+
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SyncStealRandomOpponent(int thiefIndex, int victimIndex, int[] stolenIds)
+    {
+        if (stolenIds == null || stolenIds.Length == 0) return;
+        if (players == null) return;
+        if (thiefIndex < 0 || thiefIndex >= players.Count) return;
+        if (victimIndex < 0 || victimIndex >= players.Count) return;
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+
+        var thiefPM = players[thiefIndex];
+        var victimPM = players[victimIndex];
+        if (thiefPM == null || victimPM == null) return;
+
+        // 1) Steal専用UI表示（ローカルだけ文言を変える）
+        if (CardMovePopupManager.Instance != null)
+        {
+            if (thiefPM.Object != null && thiefPM.Object.HasInputAuthority)
+            {
+                CardMovePopupManager.Instance.ShowStealCards(stolenIds, true);   // 奪った側
+            }
+            if (victimPM.Object != null && victimPM.Object.HasInputAuthority)
+            {
+                CardMovePopupManager.Instance.ShowStealCards(stolenIds, false); // 奪われた側
+            }
+        }
+
+        // 2) 奪われた側（本人端末だけ）：手札実体を消す（捨て札には入れない）
+        if (victimPM.Object != null && victimPM.Object.HasInputAuthority && victimPM.handManager != null)
+        {
+            foreach (int id in stolenIds)
+            {
+                RemoveLocalHandCardById(victimPM, id);
+            }
+
+            victimPM.handManager.UpdateCardPositions();
+            victimPM.UpdateHandCountUI();
+            victimPM.NotifyHandChangedForBothSides();
+        }
+
+        // 3) 奪った側（本人端末だけ）：手札実体を追加
+        if (thiefPM.Object != null && thiefPM.Object.HasInputAuthority && thiefPM.handManager != null)
+        {
+            if (deckManager != null)
+            {
+                foreach (int id in stolenIds)
+                {
+                    var data = deckManager.GetCardDataById(id);
+                    if (data != null)
+                        thiefPM.handManager.AddCardFromData(data);
+                }
+            }
+
+            thiefPM.handManager.UpdateCardPositions();
+            thiefPM.UpdateHandCountUI();
+            thiefPM.NotifyHandChangedForBothSides();
+        }
+    }
+
+
+
+
+
+
 
     // ============================================================
     //  Fusion 推奨：RenderでNetworkedの変更監視

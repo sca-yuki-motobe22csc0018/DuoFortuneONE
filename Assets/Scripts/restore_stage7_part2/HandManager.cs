@@ -113,6 +113,43 @@ public class HandManager : MonoBehaviour
             ownerPlayer.NotifyHandChangedForBothSides();
     }
 
+    public bool RemoveCardByIdNoDiscard(int cardId)
+    {
+        if (cardId <= 0) return false;
+
+        for (int i = 0; i < handCards.Count; i++)
+        {
+            GameObject go = handCards[i];
+            if (go == null) continue;
+
+            CardGenerator cg = go.GetComponent<CardGenerator>();
+            if (cg == null) continue;
+
+            if (cg.cardID == cardId)
+            {
+                // ‚Â‚©‚ñ‚Å‚½/ƒhƒ‰ƒbƒO’†‚¾‚Á‚½‚ç‰ğœ
+                if (draggingCard == go) draggingCard = null;
+
+                handCards.RemoveAt(i);
+                UpdateCardPositions();
+
+                Destroy(go);
+
+                // ownerPlayer –¢İ’è‚Ì•ÛŒ¯
+                if (ownerPlayer == null)
+                    ownerPlayer = GetComponentInParent<PlayerManager>();
+
+                if (ownerPlayer != null)
+                    ownerPlayer.NotifyHandChangedForBothSides();
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
     public void PlayCard(GameObject card)
     {
         if (card == null) return;

@@ -15,6 +15,11 @@ public class BattleManager : MonoBehaviour
     private bool receivedUseDefence = false;
     private PlayerRef expectedDefenceDefenderRef;
 
+    private bool choiceMultiWaiting = false;
+    private int expectedChoiceMultiSessionId = -1;
+    private PlayerRef expectedChoiceMultiChooserRef;
+    private int[] receivedChoiceMultiPickedCounts = null;
+    private int choiceMultiSessionSeq = 0;
 
 
     private struct AttackJob
@@ -689,14 +694,10 @@ public class BattleManager : MonoBehaviour
 
     private IEnumerator DoChoiceMultiBlockRoutine(PlayerManager defender, PlayerManager attacker, CardGenerator.CardData sourceCard, string rawValue)
     {
-        if (defender == null || defender.Object == null) yield break;
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null || gm.Object == null || !gm.Object.HasStateAuthority) yield break;
 
-        if (!defender.Object.HasInputAuthority)
-        {
-            if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("ChoiceMulti(Block内)は現在、選択者の端末でのみ実行します（Host=選択者の場合のみ）。", 1.0f, false));
-            yield break;
-        }
+        if (defender == null || defender.Object == null) yield break;
 
         if (!TryParseChoiceMultiValue_BM(rawValue, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef_BM> options))
         {
@@ -705,32 +706,31 @@ public class BattleManager : MonoBehaviour
             yield break;
         }
 
-        var window = FindAnyObjectByType<MultiChoiceWindow>();
-        if (window == null)
+        // --- Hostが「選択者の端末」にUIを開かせる ---
+        int sessionId = ++choiceMultiSessionSeq;
+
+        expectedChoiceMultiSessionId = sessionId;
+        expectedChoiceMultiChooserRef = defender.Object.InputAuthority;
+        receivedChoiceMultiPickedCounts = null;
+        choiceMultiWaiting = true;
+
+        int sourceCardId = (sourceCard != null) ? sourceCard.id : -1;
+
+        gm.RPC_OpenChoiceMulti(expectedChoiceMultiChooserRef, sessionId, sourceCardId, rawValue);
+
+        while (choiceMultiWaiting)
+            yield return null;
+
+        int[] pickedCounts = receivedChoiceMultiPickedCounts;
+
+        if (pickedCounts == null || pickedCounts.Length == 0)
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("MultiChoiceWindow が見つかりません。", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("ChoiceMulti: 選択結果が空のため処理を中止します。", 0.8f, false));
             yield break;
         }
 
-        bool confirmed = false;
-        int[] pickedCounts = null;
-
-        string[] optionTexts = new string[options.Count];
-        for (int i = 0; i < options.Count; i++) optionTexts[i] = options[i].text;
-
-        string fullText = (sourceCard != null) ? sourceCard.text : "";
-
-        window.Open(fullText, optionTexts, pickMax, sameMax, (arr) =>
-        {
-            pickedCounts = arr;
-            confirmed = true;
-        });
-
-        yield return new WaitUntil(() => confirmed && pickedCounts != null);
-
-        // Block中のChoiceMultiは「UIが要らない効果だけ」最低限実行
-        // （SelectDiscardSelf / RecoverDiscard などは必要になったらRPCで拡張）
+        // --- 文章の上から順番に実行 ---
         for (int i = 0; i < options.Count; i++)
         {
             int times = (i < pickedCounts.Length) ? pickedCounts[i] : 0;
@@ -738,57 +738,83 @@ public class BattleManager : MonoBehaviour
 
             for (int rep = 0; rep < times; rep++)
             {
+                if (EffectProcessWindow.Instance != null)
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti: {options[i].text}", 0.6f, true));
+
                 foreach (var eff in options[i].effects)
                 {
                     string t = eff.type;
                     string v = eff.value;
-                    var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+
                     if (string.IsNullOrEmpty(t)) continue;
 
+                    // ★ここはまず「入力不要」の効果だけ対応（安全版）
                     switch (t)
                     {
                         case "Draw":
-                            if (int.TryParse(v, out int dn))
-                            {
-                                for (int d = 0; d < dn; d++)
-                                    gm.EffectDraw(defender, 1);
-                            }
+                            if (int.TryParse(v, out int drawCount))
+                                gm.EffectDraw(defender, drawCount);
                             break;
 
                         case "ManaBoost":
-                            if (int.TryParse(v, out int mb))
-                                gm.EffectManaBoost(defender, mb);
+                            if (int.TryParse(v, out int boost))
+                                gm.EffectManaBoost(defender, boost);
                             break;
 
                         case "ManaRecover":
-                            if (int.TryParse(v, out int mr))
-                                gm.EffectManaRecover(defender, mr, false);
+                            if (v == "ALL")
+                            {
+                                gm.EffectManaRecover(defender, 0, true);
+                            }
+                            else if (int.TryParse(v, out int recover))
+                            {
+                                gm.EffectManaRecover(defender, recover, false);
+                            }
+                            break;
+
+                        case "LifeAdd":
+                            if (int.TryParse(v, out int life))
+                                gm.AddLifeToPlayer(defender, life);
+                            break;
+
+                        case "RandomDiscardSelf":
+                            if (int.TryParse(v, out int rds))
+                            {
+                                // Host側で実行（RPC関数だがStateAuthorityへ飛ぶのでOK）
+                                gm.RPC_RequestRandomDiscard(defender.Object.InputAuthority, defender.Object.InputAuthority, rds);
+                            }
                             break;
 
                         case "RandomDiscardOpponent":
-                            if (int.TryParse(v, out int rd) && attacker != null && attacker.Object != null)
-                                gm.RPC_RequestRandomDiscard(defender.Object.InputAuthority, attacker.Object.InputAuthority, rd);
-                            break;
-
-                        case "SelectDiscardSelf":
-                        case "RecoverDiscard":
-                        case "StealRandomOpponent":
-                            if (EffectProcessWindow.Instance != null)
-                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"Block内の {t} はまだ未対応です。", 0.8f, false));
+                            if (attacker != null && attacker.Object != null && int.TryParse(v, out int rdo))
+                            {
+                                gm.RPC_RequestRandomDiscard(defender.Object.InputAuthority, attacker.Object.InputAuthority, rdo);
+                            }
                             break;
 
                         default:
                             if (EffectProcessWindow.Instance != null)
-                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"Block内 ChoiceMulti: 未対応の効果 {t}({v})", 0.8f, false));
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti(Block内): 未対応の効果 [{t}] をスキップしました。", 0.8f, false));
                             break;
                     }
 
+                    // 1フレームだけ進めてUI/同期を落ち着かせる
                     yield return null;
                 }
             }
         }
     }
 
+
+    public void ReceiveChoiceMultiResult(int sessionId, PlayerRef chooserRef, int[] pickedCounts)
+    {
+        if (!choiceMultiWaiting) return;
+        if (sessionId != expectedChoiceMultiSessionId) return;
+        if (chooserRef != expectedChoiceMultiChooserRef) return;
+
+        receivedChoiceMultiPickedCounts = pickedCounts;
+        choiceMultiWaiting = false;
+    }
 
     private void SendBlockToDiscard(PlayerManager defender, CardGenerator.CardData blockCard)
     {

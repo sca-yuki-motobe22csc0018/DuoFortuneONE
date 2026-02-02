@@ -15,22 +15,22 @@ Attackを１回する。",1003,ManaReduceSelf,1,SelectDiscardSelf,2,Attack,1,,,,
 Attackを５回する。",1004,ManaReduceSelf,10,RandomDiscardSelf,100,SealCost,SELF,Attack,1,Attack,1,Attack,1,Attack,1,Attack,1,,,,
 1005,狂暴の義賊・黒瀬,ボコボコシーフ・クロセ,A,R,5,"エネルギーの最大値ー１。
 相手の手札をランダムに１枚奪う。
-Attackを１回する。",1005,ManaReduceMax,1,StealRandomOpponent,1,Attack,1, ,,,,,,,,,,,,,
+Attackを１回する。",1005,ManaReduceSelf,1,StealRandomOpponent,1,Attack,1, ,,,,,,,,,,,,,
 1006,挑戦の双撃 クロセNEXT,ちょうせんのそうげき くろせねくすと,A,R,7,"エネルギーの最大値ー３。
 １～１０の内の数字を1つ選ぶ。
 選んだ数字と同じコストを持つカードを、
 このターン中誰も使えない。
-Attackを２回する。",1006,ManaReduceMax,3,SealCost,SELF,Attack,1,Attack,1,,,,,,,,,,,,
+Attackを２回する。",1006,ManaReduceSelf,3,SealCost,SELF,Attack,1,Attack,1,,,,,,,,,,,,
 1007,強大な私と私,イッツ・パワフル・ミー・アンド・ミー,A,R,5,"エネルギーの最大値ー１。
 Attackを２回する。
 エネルギーを全て回復。
-ターンを終了する。",1007,ManaReduceMax,1,Attack,2,ManaRecover,ALL,EndTurn,1,,,,,,,,,,,,
+ターンを終了する。",1007,ManaReduceSelf,1,Attack,2,ManaRecover,ALL,EndTurn,1,,,,,,,,,,,,
 1008,全てを賭けた一撃,すべてをかけたいちげき,A,R,1,"エネルギーの最大値ー１０。
 手札を全て捨てる。
 １～１０の内の数字を１つ選ぶ。
 選んだ数字と同じコストを持つカードを、
 このターン中誰も使えない。
-Attackを１回する。",1008,ManaReduceMax,10,RandomDiscardSelf,100,SealCost,SELF,Attack,1,,,,,,,,,,,,
+Attackを１回する。",1008,ManaReduceSelf,10,RandomDiscardSelf,100,SealCost,SELF,Attack,1,,,,,,,,,,,,
 1009,瞬間双撃,クイックスウィープ,A,R,5,"エネルギーの最大値ー２。
 Attackを２回する。",1009,ManaReduceSelf,2,Attack,1,Attack,1,,,,,,,,,,,,,,
 1010,死と生,デッド・アンド・アライヴ,A,R,7,"エネルギーの最大値ー２。
@@ -63,7 +63,7 @@ Attackを１回する。",2003,SelectDiscardSelf,2,CounterAttack,1,,,,,,,,,,,,,,
 2007,Turn Hacking,ターン・ハッキング,B,R,5,"エネルギーの最大値ー１。
 手札を２枚捨てる。
 ターンを終了する。
-(残りの処理をスキップする。)",2007,ManaReduceMax,1,DiscardSelf,2,EndTurn,1,,,,,,,,,,,,,,
+(残りの処理をスキップする。)",2007,ManaReduceSelf,1,DiscardSelf,2,EndTurn,1,,,,,,,,,,,,,,
 2008,Resurrect Shield・α,リザレクトシールド・アルファ,B,R,3,"Blockする。
 エネルギーの最大値＋１。
 エネルギーを２回復。",2008,Block,1,ManaBoost,1,ManaRecover,2,,,,,,,,,,,,,,
