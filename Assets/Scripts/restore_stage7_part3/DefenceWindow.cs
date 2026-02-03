@@ -94,6 +94,20 @@ public class DefenceWindow : MonoBehaviour
 
         if (useButton != null) useButton.interactable = (cardData.type == "D" && !isSealedCost);
 
+        if (useButton != null)
+        {
+            // DEFENCE かつ 封印されていない時だけ使用可能
+            bool canUse = (cardData.type == "D");
+
+            if (gm != null && gm.IsLifeDefenceSealed(currentPlayer))
+            {
+                canUse = false;
+            }
+
+            useButton.interactable = canUse;
+        }
+
+
         // --- プレイヤー入力待ち ---
         while (isWaiting)
             yield return null;

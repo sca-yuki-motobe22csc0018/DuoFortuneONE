@@ -9,6 +9,16 @@ public class LifeManager : MonoBehaviour
     public float maxWidth = 6.0f;     // 配置エリアの最大幅（手札のような中心揃え）
     public float minSpacing = 0.6f;   // 詰まりすぎ防止の最小間隔
 
+    [Header("Life Seal (Defence Window Use Lock)")]
+    public GameObject lifeSealStatusImage;      // ライフゾーン封印中の表示（任意）
+    public GameObject lifeSealMarkPrefab;       // 各ライフカード上の封印マーク（任意）
+    public string lifeSealMarkChildName = "SealMark";
+
+    private bool _lifeDefenceSealed = false;
+
+    public bool IsLifeDefenceSealed => _lifeDefenceSealed;
+
+
     private List<GameObject> lifeCards = new List<GameObject>();
     private Dictionary<GameObject, CardGenerator.CardData> lifeDataDict = new Dictionary<GameObject, CardGenerator.CardData>();
     private CardGenerator.CardData lastDestroyedCard = null;
@@ -20,30 +30,30 @@ public class LifeManager : MonoBehaviour
     /// <summary>
     /// 初期ライフを山札からセットアップ（データのみドローして配置）
     /// </summary>
-    public void SetupInitialLife(int count, DeckManager deckManager)
+    public void SetupInitialLife(int lifeCount)
     {
-        if (deckManager == null)
-        {
-            Debug.LogError("LifeManager.SetupInitialLife: deckManagerが未設定です。");
-            return;
-        }
-
-        // 既存をクリア
         foreach (var card in lifeCards)
+        {
             Destroy(card);
+        }
         lifeCards.Clear();
         lifeDataDict.Clear();
 
-        // 指定枚数ぶんデータのみ引いて裏向きライフとして配置
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < lifeCount; i++)
         {
-            var data = deckManager.DrawCardDataOnly();
-            if (data == null) break;
-            AddLife(data);
+            // ★ CardGenerator.Instance は存在しないので使わない
+            // 既存の AddLife() は DeckManager から DrawCardDataOnly() して AddLife(data) する
+            AddLife();
         }
 
         RearrangeLife();
+
+        // ステータス表示（任意）
+        if (lifeSealStatusImage != null)
+            lifeSealStatusImage.SetActive(_lifeDefenceSealed);
     }
+
+
 
     /// <summary>
     /// 指定のカードデータでライフを1枚追加（外部からデータが渡される場合に使用）
@@ -59,9 +69,54 @@ public class LifeManager : MonoBehaviour
         lifeCards.Add(card);
         lifeDataDict[card] = data;
 
+        // ★封印中ならマークも付ける（後から増えたライフにも適用）
+        ApplyLifeSealMarkToCard(card, _lifeDefenceSealed);
+
+        // ステータス表示（任意）
+        if (lifeSealStatusImage != null)
+            lifeSealStatusImage.SetActive(_lifeDefenceSealed);
+
         RearrangeLife();
-        // ★ 修正: 以前はここで AddLife(null) を呼んでいたが削除（無限再帰防止）
+        // 例: 以前はここで AddLife(null) していた等があるならそのままでもOK
     }
+    public void SetLifeDefenceSealed(bool sealedOn)
+    {
+        _lifeDefenceSealed = sealedOn;
+
+        if (lifeSealStatusImage != null)
+            lifeSealStatusImage.SetActive(_lifeDefenceSealed);
+
+        // 既存ライフへ反映
+        for (int i = 0; i < lifeCards.Count; i++)
+        {
+            ApplyLifeSealMarkToCard(lifeCards[i], _lifeDefenceSealed);
+        }
+    }
+    private void ApplyLifeSealMarkToCard(GameObject card, bool show)
+    {
+        if (card == null) return;
+
+        Transform markTr = null;
+        if (!string.IsNullOrEmpty(lifeSealMarkChildName))
+        {
+            markTr = card.transform.Find(lifeSealMarkChildName);
+        }
+
+        GameObject markObj = (markTr != null) ? markTr.gameObject : null;
+
+        // 子が無い場合はプレハブから生成（任意）
+        if (markObj == null && lifeSealMarkPrefab != null)
+        {
+            markObj = Instantiate(lifeSealMarkPrefab, card.transform);
+            markObj.name = lifeSealMarkChildName;
+            markObj.transform.localScale = Vector3.one;
+            markObj.transform.localPosition = Vector3.zero;
+        }
+
+        if (markObj != null)
+            markObj.SetActive(show);
+    }
+
 
     /// <summary>
     /// 山札からデータのみ引いてライフを1枚追加（Block効果のLifeAdd等で使用）

@@ -41,7 +41,7 @@ Attackを１回する。
 1011,定められし運命,さだめられしうんめい,A,R,0,"エネルギーの最大値ー１０。
 Attackを１回する。
 このゲーム中自分は、
-ライフゾーンからカードを使えない。",1011,ManaReduceSelf,10,Attack,1,SealLife,1,,,,,,,,,,,,,,
+ライフゾーンからカードを使えない。",1011,ManaReduceSelf,10,Attack,1,SealLifeDefence,0,,,,,,,,,,,,,,
 1012,見えざる神の手,アダムスキー,A,R,4,"エネルギーの最大値ー２。
 手札を全て捨てる。
 Attackを２回する。",1012,ManaReduceSelf,2,SealCost,SELF,Attack,1,Attack,1,,,,,,,,,,,,
@@ -113,7 +113,7 @@ O3=相手の手札をランダムに１枚捨てさせる。=>RandomDiscardOppon
 ２枚ドロー。
 自分と相手の手札を入れ替える。
 エネルギーを全て回復。",3012,Defence,1,ManaReduceIfMyTurn,1,Draw,2,SwapHands,1,ManaRecover,ALL,,,,,,,,,,
-3013,知恵の一端,ちえのいったん,D,R,1,２枚ドロー。,3013,Defence,1,Draw,1,,,,,,,,,,,,,,,,
+3013,知恵の一端,ちえのいったん,D,R,1,２枚ドロー。,3013,Defence,1,Draw,2,,,,,,,,,,,,,,,,
 3014,豊穣の一滴,ほうじょうのいってき,D,R,1,エネルギーの最大値を＋１。,3014,Defence,1,ManaBoost,1,,,,,,,,,,,,,,,,
 3015,一時の損得感情,いっときのそんとくかんじょう,D,R,1,"相手の手札をランダムに１枚捨てさせる。
 手札を２枚捨てる。",3015,Defence,1,RandomDiscardOpponent,1,SelectDiscardSelf,2,,,,,,,,,,,,,,

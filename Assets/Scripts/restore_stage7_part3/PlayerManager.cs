@@ -69,6 +69,15 @@ public class PlayerManager : NetworkBehaviour
     public int oppHandBaseSortingOrder = 100;
     public int oppHandOrderStep = 10;
 
+    [Header("Life Seal (Opponent View)")]
+    public GameObject opponentLifeSealStatusImage;      // 相手が封印中の表示（任意）
+    public GameObject opponentLifeSealMarkPrefab;       // 相手ライフ裏面に付ける封印マーク（任意）
+    public string opponentLifeSealMarkChildName = "SealMark";
+
+    private bool _opponentLifeDefenceSealed = false;
+
+
+
 
     // 相手手札用の裏面カードを管理（HandManager.handCardsは使わない）
     private readonly List<GameObject> opponentHandBackCards = new List<GameObject>();
@@ -326,12 +335,20 @@ public class PlayerManager : NetworkBehaviour
         if (opponentLifeRoot == null || opponentLifeBackPrefab == null)
             return;
 
+        // 封印中表示（任意）
+        if (opponentLifeSealStatusImage != null)
+            opponentLifeSealStatusImage.SetActive(_opponentLifeDefenceSealed);
+
         // 足りないぶん追加
         int current = opponentLifeBackCards.Count;
         for (int i = current; i < count; i++)
         {
             var obj = GameObject.Instantiate(opponentLifeBackPrefab, opponentLifeRoot);
             obj.transform.localScale = Vector3.one;
+
+            // ★封印中なら新規生成分にもマークを付ける
+            ApplyOpponentLifeSealMarkToCard(obj, _opponentLifeDefenceSealed);
+
             opponentLifeBackCards.Add(obj);
         }
 
@@ -356,8 +373,82 @@ public class PlayerManager : NetworkBehaviour
         {
             var tr = opponentLifeBackCards[i].transform;
             tr.localPosition = new Vector3(startX + spacing * i, 0f, 0f);
+
+            // ★既存分にも反映（封印が途中でONになった場合も対応）
+            ApplyOpponentLifeSealMarkToCard(opponentLifeBackCards[i], _opponentLifeDefenceSealed);
         }
     }
+
+    public void SetOpponentLifeDefenceSealed(bool sealedOn)
+    {
+        _opponentLifeDefenceSealed = sealedOn;
+
+        if (opponentLifeSealStatusImage != null)
+            opponentLifeSealStatusImage.SetActive(_opponentLifeDefenceSealed);
+
+        // ★相手ライフ裏面がまだ生成されてない/数が変わってる可能性があるので再描画
+        UpdateLifeUI();
+
+        for (int i = 0; i < opponentLifeBackCards.Count; i++)
+        {
+            ApplyOpponentLifeSealMarkToCard(opponentLifeBackCards[i], _opponentLifeDefenceSealed);
+        }
+    }
+
+
+    private void ApplyOpponentLifeSealMarkToCard(GameObject cardBack, bool show)
+    {
+        if (cardBack == null) return;
+
+        Transform markTr = null;
+        if (!string.IsNullOrEmpty(opponentLifeSealMarkChildName))
+        {
+            markTr = cardBack.transform.Find(opponentLifeSealMarkChildName);
+        }
+
+        GameObject markObj = (markTr != null) ? markTr.gameObject : null;
+
+        // 子が無い場合はプレハブから生成（任意）
+        if (markObj == null)
+        {
+            // ★相手用が未設定なら、自分ライフ用のマークプレハブを流用（Inspector設定ミスの保険）
+            GameObject prefab = opponentLifeSealMarkPrefab;
+            if (prefab == null && lifeManager != null && lifeManager.lifeSealMarkPrefab != null)
+            {
+                prefab = lifeManager.lifeSealMarkPrefab;
+            }
+
+            if (prefab != null)
+            {
+                markObj = GameObject.Instantiate(prefab, cardBack.transform);
+                markObj.name = opponentLifeSealMarkChildName;
+                markObj.transform.localScale = Vector3.one;
+                markObj.transform.localPosition = Vector3.zero;
+                markObj.transform.localRotation = Quaternion.identity;
+
+                // ★UI(Image)想定：中央固定
+                var rt = markObj.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    rt.anchorMin = new Vector2(0.5f, 0.5f);
+                    rt.anchorMax = new Vector2(0.5f, 0.5f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.anchoredPosition = Vector2.zero;
+                }
+            }
+        }
+
+        if (markObj != null)
+        {
+            // ★カード裏面より前に出す
+            markObj.transform.SetAsLastSibling();
+            markObj.SetActive(show);
+        }
+    }
+
+
+
+
 
     // 相手の裏面カードを枚数に合わせて増減
     // 相手の裏面カードを枚数に合わせて増減＆整列（HandManager.handCardsは使わない）

@@ -1380,6 +1380,9 @@ MonoBehaviour:
   lifeParent: {fileID: 4255514657016513791}
   maxWidth: 7
   minSpacing: 0.75
+  lifeSealStatusImage: {fileID: 0}
+  lifeSealMarkPrefab: {fileID: 3228664229943183056, guid: dbd3d22f6e249034c94a226b2dabfde1, type: 3}
+  lifeSealMarkChildName: SealMark
 --- !u!1 &2590224861547794431
 GameObject:
   m_ObjectHideFlags: 0
@@ -4595,6 +4598,9 @@ MonoBehaviour:
   oppHandNormalScale: 0.9
   oppHandBaseSortingOrder: 100
   oppHandOrderStep: 10
+  opponentLifeSealStatusImage: {fileID: 0}
+  opponentLifeSealMarkPrefab: {fileID: 3228664229943183056, guid: dbd3d22f6e249034c94a226b2dabfde1, type: 3}
+  opponentLifeSealMarkChildName: SealMark
 --- !u!114 &5389386723449038482
 MonoBehaviour:
   m_ObjectHideFlags: 0

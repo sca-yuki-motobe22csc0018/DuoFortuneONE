@@ -808,6 +808,11 @@ public class CardGenerator : MonoBehaviour,
                     break;
                 }
 
+            case "SealLifeDefence":
+                yield return StartCoroutine(DoSealLifeDefenceRoutine(value));
+                break;
+
+
             case "SealCost":
                 yield return StartCoroutine(DoSealCostDeclareRoutine(value));
                 break;
@@ -1056,6 +1061,28 @@ public class CardGenerator : MonoBehaviour,
         yield return EffectProcessWindow.Instance.ShowProcessAuto($"ライフを {x} 増やします。", 0.6f, false);
         DoLifeAdd(x);
         yield break;
+    }
+
+    private IEnumerator DoSealLifeDefenceRoutine(string value)
+    {
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+        if (gm == null || runner == null) yield break;
+
+        // value: "SELF"(省略可), "OPPONENT", "BOTH"
+        int targetMode = 0; // SELF
+        if (value == "OPPONENT") targetMode = 1;
+        else if (value == "BOTH") targetMode = 2;
+
+        // Hostへ永続封印を依頼
+        gm.RPC_RequestApplyLifeDefenceSeal(runner.LocalPlayer, targetMode);
+
+        // ちょい表示（任意）
+        if (EffectProcessWindow.Instance != null)
+        {
+            string msg = "ライフDEFENCE封印が発動しました。";
+            yield return EffectProcessWindow.Instance.ShowProcessAuto(msg, 0.6f, false);
+        }
     }
 
 

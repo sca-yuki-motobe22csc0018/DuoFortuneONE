@@ -106,6 +106,15 @@ public class GameManager : NetworkBehaviour
     private readonly System.Collections.Generic.List<int> _sealedCostsThisTurn
         = new System.Collections.Generic.List<int>();
 
+    // ============================
+    // ライフゾーンDEFENCE封印（永続）
+    // ============================
+    private bool _lifeDefenceSealedP0 = false;
+    private bool _lifeDefenceSealedP1 = false;
+
+
+
+
     private bool _sealSessionActive = false;
     private bool _sealSessionExpectBoth = false;
     private int _sealSessionId = 0;
@@ -2444,6 +2453,88 @@ public class GameManager : NetworkBehaviour
             thiefPM.UpdateHandCountUI();
             thiefPM.NotifyHandChangedForBothSides();
         }
+    }
+
+    public bool IsLifeDefenceSealedForIndex(int idx)
+    {
+        if (idx == 0) return _lifeDefenceSealedP0;
+        if (idx == 1) return _lifeDefenceSealedP1;
+        return false;
+    }
+
+    public bool IsLifeDefenceSealed(PlayerManager pm)
+    {
+        if (pm == null || players == null) return false;
+        int idx = players.IndexOf(pm);
+        return IsLifeDefenceSealedForIndex(idx);
+    }
+
+    // ==================================================
+    //  ライフゾーンDEFENCE封印（永続）
+    //  targetMode: 0=SELF / 1=OPPONENT / 2=BOTH
+    // ==================================================
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestApplyLifeDefenceSeal(PlayerRef requester, int targetMode)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (players == null || players.Count < 2) return;
+
+        int requesterIndex = FindPlayerIndexByRef(requester);
+        if (requesterIndex < 0) return;
+
+        if (targetMode == 0)
+        {
+            // SELF
+            ApplyLifeDefenceSealHost(requesterIndex, true);
+        }
+        else if (targetMode == 1)
+        {
+            // OPPONENT
+            int opp = (requesterIndex == 0) ? 1 : 0;
+            ApplyLifeDefenceSealHost(opp, true);
+        }
+        else if (targetMode == 2)
+        {
+            // BOTH
+            ApplyLifeDefenceSealHost(0, true);
+            ApplyLifeDefenceSealHost(1, true);
+        }
+    }
+
+    private void ApplyLifeDefenceSealHost(int targetIndex, bool sealedOn)
+    {
+        if (targetIndex == 0) _lifeDefenceSealedP0 = sealedOn;
+        else if (targetIndex == 1) _lifeDefenceSealedP1 = sealedOn;
+
+        RPC_ApplyLifeDefenceSeal(targetIndex, sealedOn);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_ApplyLifeDefenceSeal(int playerIndex, bool sealedOn)
+    {
+        if (playerIndex == 0) _lifeDefenceSealedP0 = sealedOn;
+        else if (playerIndex == 1) _lifeDefenceSealedP1 = sealedOn;
+
+        // UI反映（自分視点）
+        var localPm = GetLocalPlayerManager();
+        if (localPm == null) return;
+
+        // ★毎回「自分」と「相手」両方の封印状態を反映する（片側だけ更新されない事故防止）
+        int localIdx = (players != null) ? players.IndexOf(localPm) : -1;
+        if (localIdx < 0) return;
+
+        int oppIdx = (localIdx == 0) ? 1 : 0;
+
+        bool localSealed = IsLifeDefenceSealedForIndex(localIdx);
+        bool oppSealed = IsLifeDefenceSealedForIndex(oppIdx);
+
+        if (localPm.lifeManager != null)
+            localPm.lifeManager.SetLifeDefenceSealed(localSealed);
+
+        localPm.SetOpponentLifeDefenceSealed(oppSealed);
+
+        // ★相手ライフ裏面の生成/整列も含めて再描画
+        localPm.UpdateLifeUI();
     }
 
 

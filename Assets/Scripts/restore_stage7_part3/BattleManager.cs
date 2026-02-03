@@ -792,6 +792,21 @@ public class BattleManager : MonoBehaviour
                             }
                             break;
 
+                        case "SealLifeDefence":
+                            {
+                                if (gm != null && gm.Object != null && gm.Object.HasStateAuthority && defender != null && defender.Object != null)
+                                {
+                                    int targetMode = 0; // SELF
+                                    if (v == "OPPONENT") targetMode = 1;
+                                    else if (v == "BOTH") targetMode = 2;
+
+                                    // 「このBlockカードを使った側(defender)」を requester として封印を付与
+                                    gm.RPC_RequestApplyLifeDefenceSeal(defender.Object.InputAuthority, targetMode);
+                                }
+                                break;
+                            }
+
+
                         default:
                             if (EffectProcessWindow.Instance != null)
                                 yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti(Block内): 未対応の効果 [{t}] をスキップしました。", 0.8f, false));
