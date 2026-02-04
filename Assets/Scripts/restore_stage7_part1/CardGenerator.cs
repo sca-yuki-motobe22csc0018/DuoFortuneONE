@@ -67,6 +67,9 @@ public class CardGenerator : MonoBehaviour,
     public bool skipAutoDiscard = false;
     public bool isDefenceWindowUse = false; // ★ DEFENCEウインドウ経由で使われたか
 
+    private bool _abortRemainingEffects = false; // ★ 攻撃カードの残り効果スキップ用
+
+
     [Header("Target Area")]
     public Transform targetArea;
     public float targetRadius = 1.0f;
@@ -566,6 +569,8 @@ public class CardGenerator : MonoBehaviour,
     {
         var processWindow = FindAnyObjectByType<EffectProcessWindow>();
         var gmLock = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        _abortRemainingEffects = false; // ★毎回リセット
+
 
         // 手札カード使用ロック解除は必ず最後に行う（途中return/Destroy対策）
         // ▼追加：処理中カードの表示（手札/DefenceWindow経由のCardGenerator）
@@ -611,6 +616,9 @@ public class CardGenerator : MonoBehaviour,
                     processWindow.ShowMessage($"効果実行中: {e.type} ({e.value})");
 
                 yield return StartCoroutine(ApplyEffect(e.type, e.value));
+                if (_abortRemainingEffects)
+                    break;
+
 
                 if (isAuto)
                     yield return new WaitForSeconds(0.6f);
@@ -817,6 +825,11 @@ public class CardGenerator : MonoBehaviour,
                 yield return StartCoroutine(DoSealCostDeclareRoutine(value));
                 break;
 
+            case "EndTurnIfOpponentTurn":
+                yield return StartCoroutine(DoEndTurnIfOpponentTurnRoutine());
+                break;
+
+
             case "Defence":
                 yield return StartCoroutine(DoDefenceRoutine());
                 break;
@@ -992,18 +1005,32 @@ public class CardGenerator : MonoBehaviour,
         }
     }
 
-    private void DoEndTurn()
+    void DoEndTurn()
+    {
+        RequestEndTurnByEffect(0);
+    }
+
+    // ★効果によるターン終了は Host に依頼して実行（自分/相手どちらのターンでも対応）
+    void RequestEndTurnByEffect(int mode)
     {
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         if (gm == null)
         {
-            Debug.LogError("DoEndTurn: GameManager が見つかりません。");
+            Debug.LogError("RequestEndTurnByEffect: GameManager が見つかりません。");
             return;
         }
 
-        // ★効果のEndTurnはロック無視で通す
-        gm.OnEndTurnFromEffect();
+        var r = FindAnyObjectByType<NetworkRunner>();
+        if (r == null)
+        {
+            Debug.LogError("RequestEndTurnByEffect: NetworkRunner が見つかりません。");
+            return;
+        }
+
+        // ★skipOpponentCardRemainingEffects は true（要求仕様：残り効果も飛ばす）
+        gm.RPC_RequestEndTurnByEffect(r.LocalPlayer, mode, true);
     }
+
 
 
     private IEnumerator DoDrawRoutine(int n)
@@ -1220,11 +1247,18 @@ public class CardGenerator : MonoBehaviour,
     private IEnumerator DoEndTurnRoutine()
     {
         yield return EffectProcessWindow.Instance.ShowProcessAuto("ターンを終了します。", 0.6f, false);
-        DoEndTurn();
+        RequestEndTurnByEffect(0);
         yield break;
     }
 
     private IEnumerator DoEndTurnIfMyTurnRoutine()
+    {
+        yield return EffectProcessWindow.Instance.ShowProcessAuto("ターンを終了します。", 0.6f, false);
+        RequestEndTurnByEffect(1);
+        yield break;
+
+    }
+    private IEnumerator DoEndTurnIfOpponentTurnRoutine()
     {
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         if (gm == null || gm.players == null || gm.players.Count == 0)
@@ -1233,16 +1267,15 @@ public class CardGenerator : MonoBehaviour,
         var current = gm.players[gm.currentPlayerIndex];
         bool isMyTurn = (current == player) && current != null && current.Object.HasInputAuthority;
 
-        if (!isMyTurn)
+        if (isMyTurn)
         {
-            // 見える化が不要ならこの2行は消してOK
             if (EffectProcessWindow.Instance != null)
-                yield return EffectProcessWindow.Instance.ShowProcessAuto("自分のターンではないためターン終了をスキップします。", 0.4f, false);
+                yield return EffectProcessWindow.Instance.ShowProcessAuto("相手のターンではないためターン終了をスキップします。", 0.4f, false);
             yield break;
         }
 
         yield return EffectProcessWindow.Instance.ShowProcessAuto("ターンを終了します。", 0.6f, false);
-        DoEndTurn();
+        RequestEndTurnByEffect(2);
         yield break;
     }
 
@@ -1262,15 +1295,40 @@ public class CardGenerator : MonoBehaviour,
         while (!s_resolvedAttack.Contains(requestId))
             yield return null;
 
+        bool skipRemaining = ConsumeSkipRemainingEffects(requestId);
         s_resolvedAttack.Remove(requestId);
+
+        // ★この攻撃の残り効果スキップが要求されている場合は、攻撃カード側の効果列を中断
+        if (skipRemaining)
+            _abortRemainingEffects = true;
     }
+
     private static int s_attackRequestId = 0;
     private static readonly HashSet<int> s_resolvedAttack = new HashSet<int>();
+    private static readonly HashSet<int> s_skipRemainingEffectsAttack = new HashSet<int>();
 
     public static void NotifyAttackResolved(int requestId)
     {
-        s_resolvedAttack.Add(requestId);
+        NotifyAttackResolved(requestId, false);
     }
+
+    public static void NotifyAttackResolved(int requestId, bool skipRemainingEffects)
+    {
+        s_resolvedAttack.Add(requestId);
+
+        if (skipRemainingEffects)
+            s_skipRemainingEffectsAttack.Add(requestId);
+        else
+            s_skipRemainingEffectsAttack.Remove(requestId);
+    }
+
+    private static bool ConsumeSkipRemainingEffects(int requestId)
+    {
+        bool skip = s_skipRemainingEffectsAttack.Contains(requestId);
+        s_skipRemainingEffectsAttack.Remove(requestId);
+        return skip;
+    }
+
 
     private static int NextAttackRequestId()
     {

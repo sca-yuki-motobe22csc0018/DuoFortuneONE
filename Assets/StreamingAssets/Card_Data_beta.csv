@@ -24,7 +24,7 @@ Attackを２回する。",1006,ManaReduceSelf,3,SealCost,SELF,Attack,1,Attack,1,
 1007,強大な私と私,イッツ・パワフル・ミー・アンド・ミー,A,R,5,"エネルギーの最大値ー１。
 Attackを２回する。
 エネルギーを全て回復。
-ターンを終了する。",1007,ManaReduceSelf,1,Attack,2,ManaRecover,ALL,EndTurn,1,,,,,,,,,,,,
+ターンを終了する。",1007,ManaReduceSelf,1,Attack,1,Attack,1,ManaRecover,ALL,EndTurn,1,,,,,,,,,,
 1008,全てを賭けた一撃,すべてをかけたいちげき,A,R,1,"エネルギーの最大値ー１０。
 手札を全て捨てる。
 １～１０の内の数字を１つ選ぶ。
@@ -63,7 +63,7 @@ Attackを１回する。",2003,SelectDiscardSelf,2,CounterAttack,1,,,,,,,,,,,,,,
 2007,Turn Hacking,ターン・ハッキング,B,R,5,"エネルギーの最大値ー１。
 手札を２枚捨てる。
 ターンを終了する。
-(残りの処理をスキップする。)",2007,ManaReduceSelf,1,DiscardSelf,2,EndTurn,1,,,,,,,,,,,,,,
+(残りの処理をスキップする。)",2007,ManaReduceSelf,1,Block,1,DiscardSelf,2,EndTurn,1,,,,,,,,,,,,
 2008,Resurrect Shield・α,リザレクトシールド・アルファ,B,R,3,"Blockする。
 エネルギーの最大値＋１。
 エネルギーを２回復。",2008,Block,1,ManaBoost,1,ManaRecover,2,,,,,,,,,,,,,,
@@ -99,7 +99,7 @@ O3=相手の手札をランダムに１枚捨てさせる。=>RandomDiscardOppon
 エネルギーの最大値＋１。
 捨て札から１枚加える。
 エネルギーを全て回復。
-自分のターンならターンを終了する。",3005,Defence,1,Draw,2,ManaBoost,1,RecoverDiscard,1,ManaRecover,ALL,EndTurn,1,,,,,,,,
+自分のターンならターンを終了する。",3005,Defence,1,Draw,2,ManaBoost,1,RecoverDiscard,1,ManaRecover,ALL,EndTurnIfMyTurn,1,,,,,,,,
 3006,反撃の狼煙[蒼],はんげきののろし[そう],D,R,2,エネルギーの最大値＋２。,3006,Defence,1,ManaBoost,2,,,,,,,,,,,,,,,,
 3007,反撃の狼煙[碧],はんげきののろし[へき],D,R,2,４枚ドローし、手札を１枚捨てる。,3007,Defence,1,Draw,4,SelectDiscardSelf,1,,,,,,,,,,,,,,
 3008,反撃の狼煙[玄],はんげきののろし[くろ],D,R,2,"１枚ドロー。
@@ -126,7 +126,7 @@ O3=相手の手札をランダムに１枚捨てさせる。=>RandomDiscardOppon
 エネルギーの最大値＋１。
 相手の手札をランダムに１枚捨てさせる。
 捨て札から１枚加える。
-自分のターンならターンを終了する。",3018,Defence,1,RandomDiscardSelf,100,Draw,1,ManaBoost,1,RandomDiscardOpponent,1,RecoverDiscard,1,EndTurn,1,,,,,,
+自分のターンならターンを終了する。",3018,Defence,1,RandomDiscardSelf,100,Draw,1,ManaBoost,1,RandomDiscardOpponent,1,RecoverDiscard,1,EndTurnIfMyTurn,1,,,,,,
 3020,落穂ひろい,おちぼひろい,D,R,2,捨て札から１枚加える。,3020,Defence,1,RecoverDiscard,1,,,,,,,,,,,,,,,,
 3021,憤怒と色欲と嫉妬の争求,トライアル・ディザイア,D,R,6,"自分のターンならエネルギーの最大値をー２。
 次の◎から３回選んで使用する。

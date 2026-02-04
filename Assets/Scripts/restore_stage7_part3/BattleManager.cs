@@ -1,4 +1,4 @@
-using Fusion;
+ï»¿using Fusion;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -28,7 +28,7 @@ public class BattleManager : MonoBehaviour
         public PlayerManager defender;
         public CardGenerator.CardData attackCard;
 
-        // š’Ç‰Á
+        // â˜…è¿½åŠ 
         public PlayerRef attackerRef;
         public int requestId;
 
@@ -46,7 +46,27 @@ public class BattleManager : MonoBehaviour
     private readonly Queue<AttackJob> attackQueue = new Queue<AttackJob>();
     private bool isProcessingAttackQueue = false;
 
-    // š ’Ç‰ÁFHost‚¾‚¯‚ªUŒ‚‚ğÏ‚Ş
+    // â˜…æ”»æ’ƒã‚«ãƒ¼ãƒ‰ã®ã€Œæ®‹ã‚ŠåŠ¹æœã‚¹ã‚­ãƒƒãƒ—ã€äºˆç´„ï¼ˆã‚¿ãƒ¼ãƒ³çµ‚äº†åŠ¹æœç”¨ï¼‰
+    private bool _skipRemainingEffectsForCurrentAttack = false;
+    private bool _isHandlingAttack = false;
+    private PlayerRef _currentAttackerRef;
+    private int _currentAttackRequestId = -1;
+
+    // â˜…Hostå´ï¼šç¾åœ¨å‡¦ç†ä¸­ã®Attackã®æ®‹ã‚ŠåŠ¹æœã‚’ã‚¹ã‚­ãƒƒãƒ—ã™ã‚‹ï¼ˆé˜²å¾¡/Blockå´ãŒã‚¿ãƒ¼ãƒ³çµ‚äº†ã‚’ç™ºå‹•ã—ãŸæ™‚ç”¨ï¼‰
+    public void MarkSkipRemainingEffectsForCurrentAttack(PlayerRef requester)
+    {
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        if (gm == null || gm.Object == null || !gm.Object.HasStateAuthority) return;
+        if (!_isHandlingAttack) return;
+
+        // requester ãŒæ”»æ’ƒè€…æœ¬äººã®å ´åˆã¯ã€Œç›¸æ‰‹ã‚«ãƒ¼ãƒ‰ã®æ®‹ã‚ŠåŠ¹æœã‚¹ã‚­ãƒƒãƒ—ã€ã«ãªã‚‰ãªã„ã®ã§ç„¡è¦–ï¼ˆå¿…è¦ãªã‚‰å¤–ã™ï¼‰
+        if (requester == _currentAttackerRef) return;
+
+        _skipRemainingEffectsForCurrentAttack = true;
+    }
+
+
+    // â˜… è¿½åŠ ï¼šHostã ã‘ãŒæ”»æ’ƒã‚’ç©ã‚€
     public void EnqueueAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard, PlayerRef attackerRef, int requestId)
     {
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
@@ -60,7 +80,7 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    // š ’Ç‰ÁFƒLƒ…[‚ğ‡”Ô‚É‰ğŒˆ
+    // â˜… è¿½åŠ ï¼šã‚­ãƒ¥ãƒ¼ã‚’é †ç•ªã«è§£æ±º
     private IEnumerator ProcessAttackQueue()
     {
         isProcessingAttackQueue = true;
@@ -111,11 +131,11 @@ public class BattleManager : MonoBehaviour
     }
 
     /// <summary>
-    /// UŒ‚‚Ìƒtƒ[‚ğg‘S•”h‚±‚±‚Å“Š‡‚·‚éiShowProcessFNextƒ{ƒ^ƒ“‘Ò‚¿‘Î‰j
+    /// æ”»æ’ƒã®ãƒ•ãƒ­ãƒ¼ã‚’â€œå…¨éƒ¨â€ã“ã“ã§çµ±æ‹¬ã™ã‚‹ï¼ˆShowProcessï¼šNextãƒœã‚¿ãƒ³å¾…ã¡å¯¾å¿œï¼‰
     /// </summary>
-    public IEnumerator HandleAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard, PlayerRef attackerRef, int requestId)
+    IEnumerator HandleAttack(PlayerManager attacker, PlayerManager defender, CardGenerator.CardData attackCard, PlayerRef attackerRef, int requestId)
     {
-        // š ’Ç‰ÁFHost ˆÈŠO‚Å‚Íí“¬ˆ—‚ğ‚µ‚È‚¢
+        //  Ç‰FHost ÈŠOÅ‚Íí“¬È‚
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         if (gm == null || !gm.Object.HasStateAuthority)
             yield break;
@@ -123,21 +143,27 @@ public class BattleManager : MonoBehaviour
         if (attacker == null || defender == null || attackCard == null)
             yield break;
 
-        // defender ‚ª players ‚Ì‰½”Ô–Ú‚©‚ğŠo‚¦‚Ä‚¨‚­iƒ‰ƒCƒt“¯Šú—pj
+        // â˜…è¿½åŠ ï¼šã“ã®Attack(job)ã®æ–‡è„ˆï¼ˆæ®‹ã‚ŠåŠ¹æœã‚¹ã‚­ãƒƒãƒ—åˆ¤å®šç”¨ï¼‰
+        _isHandlingAttack = true;
+        _currentAttackerRef = attackerRef;
+        _currentAttackRequestId = requestId;
+        _skipRemainingEffectsForCurrentAttack = false;
+
+        // defender  players Ì‰Ô–Ú‚oÄ‚iCtpj
         int defenderIndex = gm.players.IndexOf(defender);
 
-        // ‡@ UŒ‚éŒ¾
+        // @ UéŒ¾
         if (EffectProcessWindow.Instance != null)
-            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"UŒ‚Iy{attackCard.name}z", 1.0f, false));
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"UIy{attackCard.name}z", 1.0f, false));
         else
             yield return new WaitForSeconds(1.0f);
 
 
-        // ‡A Block‘I‘ğƒEƒCƒ“ƒhƒE•\¦i©“®‚Å‚Í‚È‚­è“®‘I‘ğj
+        // A BlockIEChE\iÅ‚Í‚È‚è“®Ij
         bool hasPlayableBlock = false;
         CardGenerator.CardData blockData = null;
 
-        // š BlockWindow ‚Í defender ‘¤‚Ì‰æ–Ê‚É•\¦‚µA‘I‘ğŒ‹‰Ê‚¾‚¯ Host ‚ªó‚¯æ‚é
+        //  BlockWindow  defender Ì‰Ê‚É•\AIÊ‚ Host ó‚¯
         blockWaiting = true;
         receivedBlockCardId = -1;
         expectedBlockDefenderRef = defender.Object.InputAuthority;
@@ -162,7 +188,7 @@ public class BattleManager : MonoBehaviour
             int processingBlockId = -1;
             bool attackWasNegated = false;
 
-            // ¥’Ç‰ÁFprocessingBlockId ‚Í finally ‚Å•K‚¸Á‚·
+            // Ç‰FprocessingBlockId  finally Å•K
             try
             {
                 if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
@@ -171,32 +197,32 @@ public class BattleManager : MonoBehaviour
                 }
 
                 if (EffectProcessWindow.Instance != null)
-                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"‘Šè‚Í Block ‚ğg—p‚µ‚Ü‚·By{blockData.name}z", 1.0f, false));
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($" Block gpÜ‚By{blockData.name}z", 1.0f, false));
                 else
                     yield return new WaitForSeconds(1.0f);
 
-                // š’Ç‰ÁF••ˆóƒRƒXƒg‚È‚ç Block ‚Íg—p‚Å‚«‚È‚¢iŒ©‚½–Ú‚ÍBlockWindow‘¤‚ÅƒRƒXƒg•s‘«ˆµ‚¢j
+                // Ç‰FRXgÈ‚ Block ÍgpÅ‚È‚iÚ‚BlockWindowÅƒRXgsj
                 if (gm != null && gm.IsCostSealed(blockData.cost))
                 {
                     if (EffectProcessWindow.Instance != null)
-                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("BlockƒJ[ƒh‚ğg—p‚Å‚«‚Ü‚¹‚ñB", 1.0f, false));
+                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("BlockJ[hgpÅ‚Ü‚B", 1.0f, false));
                     else
                         yield return new WaitForSeconds(1.0f);
                 }
                 else
                 {
-                    // ƒ}ƒix•¥‚¢
+                    // }ix
                     if (defender.currentMana >= blockData.cost && SpendManaSafe(defender, blockData.cost))
                     {
                         defender.UpdateEnergyUI();
 
-                        // š’Ç‰ÁFBlockƒJ[ƒh‚ğHostèDƒŠƒXƒg‚©‚çÁ‚µ‚ÄÌ‚ÄD‚ÖihandCount‚ÌƒYƒŒ–h~j
+                        // Ç‰FBlockJ[hHostDXgÄÌ‚ÄDÖihandCountÌƒYh~j
                         if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
                         {
                             gm.ConsumeHandCardToDiscardHost(expectedBlockDefenderRef, blockData.id);
                         }
 
-                        // BlockŒø‰Êˆ—
+                        // BlockÊ
                         bool attackNegated = false;
                         yield return StartCoroutine(ApplyBlockEffect(defender, attacker, blockData, neg => attackNegated = neg));
 
@@ -205,17 +231,17 @@ public class BattleManager : MonoBehaviour
                             attackWasNegated = true;
 
                             if (EffectProcessWindow.Instance != null)
-                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UŒ‚‚Í Block ‚É‚æ‚è–³Œø‰»‚³‚ê‚Ü‚µ‚½B", 1.0f, false));
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("U Block É‚è–³Ü‚B", 1.0f, false));
                             else
                                 yield return new WaitForSeconds(1.0f);
 
-                            // š‚±‚±‚Å return/yield break ‚Í‚µ‚È‚¢iŒã’i‚ÅŠ®—¹’Ê’m‚ğ‘—‚éj
+                            //  return/yield break Í‚È‚iiÅŠÊ’mğ‘—‚j
                         }
                     }
                     else
                     {
                         if (EffectProcessWindow.Instance != null)
-                            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("BlockƒJ[ƒh‚ğg—p‚Å‚«‚Ü‚¹‚ñB", 1.0f, false));
+                            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("BlockJ[hgpÅ‚Ü‚B", 1.0f, false));
                         else
                             yield return new WaitForSeconds(1.0f);
                     }
@@ -223,49 +249,57 @@ public class BattleManager : MonoBehaviour
             }
             finally
             {
-                // ¥’Ç‰ÁFBlock•\¦‚Í•K‚¸Á‚·
+                // Ç‰FBlock\Í•K
                 if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
                 {
                     gm.EndProcessingCardHost(processingBlockId);
                 }
             }
 
-            // ¥’Ç‰ÁFBlock‚Å–³Œø‰»‚³‚ê‚½‚È‚çuUŒ‚I—¹v{uŠ®—¹’Ê’mv‚ğ‘—‚Á‚ÄI—¹
+            // Ç‰FBlockÅ–ê‚½È‚uUIv{uÊ’mvğ‘—‚ÄI
             if (attackWasNegated)
             {
                 if (EffectProcessWindow.Instance != null)
-                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UŒ‚Š®—¹iBlock‚Å–³Œø‰»jB", 1.0f, false));
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UiBlockÅ–jB", 1.0f, false));
                 else
                     yield return new WaitForSeconds(1.0f);
 
                 if (gm != null)
                 {
-                    gm.RPC_AttackResolved(attackerRef, requestId);
+                    // â˜…å¤‰æ›´ï¼šWithSkipã§é€šçŸ¥
+                    gm.RPC_AttackResolvedWithSkip(attackerRef, requestId, _skipRemainingEffectsForCurrentAttack);
                 }
+
+                // â˜…è¿½åŠ ï¼šHandleAttackçµ‚äº†ï¼ˆæ–‡è„ˆã‚¯ãƒªã‚¢ï¼‰
+                _isHandlingAttack = false;
+                _currentAttackRequestId = -1;
+                _currentAttackerRef = default;
+                _skipRemainingEffectsForCurrentAttack = false;
+
                 yield break;
             }
         }
         else
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("‘Šè‚Í Block ‚ğg—p‚µ‚Ü‚¹‚ñB", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto(" Block gpÜ‚B", 1.0f, false));
             else
                 yield return new WaitForSeconds(1.0f);
         }
 
-        // ‡B UŒ‚‚ª’Ê‚Á‚½ ¨ ƒ‰ƒCƒt”j‰ó
+        // B UÊ‚  Ctj
         if (EffectProcessWindow.Instance != null)
-            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UŒ‚‚ªƒ‰ƒCƒt‚É’Ê‚è‚Ü‚µ‚½Bƒ‰ƒCƒt‚ğ”j‰ó‚µ‚Ü‚·B", 1.0f, false));
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UCtÉ’Ê‚Ü‚BCtjó‚µ‚Ü‚B", 1.0f, false));
         else
             yield return new WaitForSeconds(1.0f);
 
         CardGenerator.CardData destroyedLifeCard = null;
         if (defender.lifeManager != null)
         {
-            // š Host ‘¤‚Å 1 ‰ñ‚¾‚¯ƒ‰ƒCƒt‚ğí‚é
+            //  Host  1 ñ‚¾‚Ct
             destroyedLifeCard = defender.lifeManager.RemoveLife();
 
-            // š ‘¼ƒNƒ‰ƒCƒAƒ“ƒg‚É‚àu“¯‚¶ƒvƒŒƒCƒ„[‚Ìƒ‰ƒCƒt‚ğ1–‡í‚êv‚Æ’Ê’m
+            //  NCAgÉ‚uvC[ÌƒCt1vÆ’Ê’m
             if (defenderIndex >= 0)
             {
                 gm.RPC_SyncRemoveLife(defenderIndex);
@@ -273,18 +307,18 @@ public class BattleManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("[BattleManager] defender.lifeManager ‚ª–¢İ’è‚Å‚·B");
+            Debug.LogWarning("[BattleManager] defender.lifeManager İ’Å‚B");
         }
 
-        // ‡C DEFENCEWindow•\¦i‚Ç‚ÌƒJ[ƒhƒ^ƒCƒv‚Å‚àj
+        // C DEFENCEWindow\iÇ‚ÌƒJ[h^CvÅ‚j
         if (destroyedLifeCard != null)
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"”j‰ó‚³‚ê‚½ƒ‰ƒCƒtƒJ[ƒhy{destroyedLifeCard.name}z‚ğŠm”F‚µ‚Ü‚·B", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"jó‚³‚ê‚½CtJ[hy{destroyedLifeCard.name}zmFÜ‚B", 1.0f, false));
             else
                 yield return new WaitForSeconds(1.0f);
 
-            // š DefenceWindow ‚Í defender ‘¤‚Ì‰æ–Ê‚É•\¦‚µAŠ®—¹’Ê’m‚ğ Host ‚ªó‚¯æ‚é
+            //  DefenceWindow  defender Ì‰Ê‚É•\AÊ’m Host ó‚¯
             defenceWaiting = true;
             receivedUseDefence = false;
             expectedDefenceDefenderRef = defender.Object.InputAuthority;
@@ -297,36 +331,52 @@ public class BattleManager : MonoBehaviour
             while (defenceWaiting)
                 yield return null;
         }
-        // ¥’Ç‰ÁFAttack‚Ìˆ—‚ª‚·‚×‚ÄI‚í‚Á‚½ƒ^ƒCƒ~ƒ“ƒO‚Åƒ‰ƒCƒt0‚È‚çŸ”sŒˆ’è
+
+        // Ç‰FAttackÌ×‚ÄI^C~OÅƒCt0È‚çŸs
         if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
         {
             if (gm.TryEndGameByLifeZeroAfterAttack(attacker, defender))
-                yield break; // Ÿ”s‚ª‚Â‚¢‚½‚çˆÈ~‚Ì•\¦/ˆ—‚Í‘Å‚¿Ø‚è
+            {
+                // â˜…è¿½åŠ ï¼šHandleAttackçµ‚äº†ï¼ˆæ–‡è„ˆã‚¯ãƒªã‚¢ï¼‰
+                _isHandlingAttack = false;
+                _currentAttackRequestId = -1;
+                _currentAttackerRef = default;
+                _skipRemainingEffectsForCurrentAttack = false;
+
+                yield break; // sÂ‚È~Ì•\/Í‘Å‚Ø‚
+            }
         }
 
-        // ‡D UŒ‚I—¹
+        // D UI
         if (EffectProcessWindow.Instance != null)
-            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UŒ‚Š®—¹B", 1.0f, false));
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("UB", 1.0f, false));
         else
             yield return new WaitForSeconds(1.0f);
 
-        // š’Ç‰ÁFUŒ‚Š®—¹’Ê’miHost -> ‘Sˆõj
+        // Ç‰FUÊ’miHost -> Sj
         if (gm != null)
         {
-            gm.RPC_AttackResolved(attackerRef, requestId);
+            // â˜…å¤‰æ›´ï¼šWithSkipã§é€šçŸ¥
+            gm.RPC_AttackResolvedWithSkip(attackerRef, requestId, _skipRemainingEffectsForCurrentAttack);
         }
 
+        // â˜…è¿½åŠ ï¼šHandleAttackçµ‚äº†ï¼ˆæ–‡è„ˆã‚¯ãƒªã‚¢ï¼‰
+        _isHandlingAttack = false;
+        _currentAttackRequestId = -1;
+        _currentAttackerRef = default;
+        _skipRemainingEffectsForCurrentAttack = false;
     }
+
 
     int counterAttackCardId = -1;
     bool hasCounterAttack = false;
 
     /// <summary>
-    /// BlockŒø‰ÊiAttack•t‚«‘Î‰”Åj
+    /// BlockåŠ¹æœï¼ˆAttackä»˜ãå¯¾å¿œç‰ˆï¼‰
     /// </summary>
     private IEnumerator ApplyBlockEffect(PlayerManager defender, PlayerManager attacker, CardGenerator.CardData blockCard, System.Action<bool> onNegateResult)
     {
-        // š–ˆ‰ñƒŠƒZƒbƒg‚µ‚È‚¢‚Æó‘Ô‚ªc‚é
+        // â˜…æ¯å›ãƒªã‚»ãƒƒãƒˆã—ãªã„ã¨çŠ¶æ…‹ãŒæ®‹ã‚‹
         hasCounterAttack = false;
         counterAttackCardId = -1;
 
@@ -350,7 +400,7 @@ public class BattleManager : MonoBehaviour
             if (string.IsNullOrEmpty(t)) continue;
 
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"BlockŒø‰Ê [{t}] ‚ğ‰ğŒˆ‚µ‚Ü‚·B", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"BlockåŠ¹æœ [{t}] ã‚’è§£æ±ºã—ã¾ã™ã€‚", 1.0f, false));
             else
                 yield return new WaitForSeconds(1.0f);
 
@@ -366,12 +416,12 @@ public class BattleManager : MonoBehaviour
                         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
                         if (gm != null)
                         {
-                            // Host ‘¤‚ÅRD‚©‚çƒ‰ƒCƒtƒJ[ƒh‚ğˆø‚« ¨ ‘Sˆõ‚É“¯Šú
+                            // Host å´ã§å±±æœ­ã‹ã‚‰ãƒ©ã‚¤ãƒ•ã‚«ãƒ¼ãƒ‰ã‚’å¼•ã â†’ å…¨å“¡ã«åŒæœŸ
                             gm.AddLifeToPlayer(defender, lifePlus);
                         }
                         else
                         {
-                            // ”O‚Ì‚½‚ß‚ÌƒIƒtƒ‰ƒCƒ“—pƒtƒH[ƒ‹ƒoƒbƒN
+                            // å¿µã®ãŸã‚ã®ã‚ªãƒ•ãƒ©ã‚¤ãƒ³ç”¨ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯
                             for (int k = 0; k < lifePlus; k++)
                                 defender.lifeManager.AddLife();
                         }
@@ -401,9 +451,9 @@ public class BattleManager : MonoBehaviour
                 case "Draw":
                     if (int.TryParse(v, out int drawN))
                     {
-                        // š C³ƒ|ƒCƒ“ƒgFƒ[ƒJƒ‹‚Å DeckManager ‚É’¼Úƒhƒ[‚³‚¹‚È‚¢
-                        //    ¨ Host ‚¾‚¯‚ª GameManager Œo—R‚Å EffectDraw ‚µA
-                        //      RPC_ApplyDraw ‚Å‘Sˆõ‚ÌèD‚ª“¯Šú‚³‚ê‚é
+                        // â˜… ä¿®æ­£ãƒã‚¤ãƒ³ãƒˆï¼šãƒ­ãƒ¼ã‚«ãƒ«ã§ DeckManager ã«ç›´æ¥ãƒ‰ãƒ­ãƒ¼ã•ã›ãªã„
+                        //    â†’ Host ã ã‘ãŒ GameManager çµŒç”±ã§ EffectDraw ã—ã€
+                        //      RPC_ApplyDraw ã§å…¨å“¡ã®æ‰‹æœ­ãŒåŒæœŸã•ã‚Œã‚‹
                         var gm = GameManager.Instance;
                         if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
                         {
@@ -414,8 +464,8 @@ public class BattleManager : MonoBehaviour
 
                 case "CounterAttack":
                     hasCounterAttack = true;
-                    negated = true; // uBlock‚µ‚Ä~‚ß‚ÄAttack‚·‚év‚ğ1‚Â‚Å¬—§‚³‚¹‚é
-                    if (int.TryParse(v, out int cid)) counterAttackCardId = cid; // ”CˆÓF”½Œ‚‚Ég‚¤ƒJ[ƒhIDw’è
+                    negated = true; // ã€ŒBlockã—ã¦æ­¢ã‚ã¦Attackã™ã‚‹ã€ã‚’1ã¤ã§æˆç«‹ã•ã›ã‚‹
+                    if (int.TryParse(v, out int cid)) counterAttackCardId = cid; // ä»»æ„ï¼šåæ’ƒã«ä½¿ã†ã‚«ãƒ¼ãƒ‰IDæŒ‡å®š
                     break;
 
                 case "Attack":
@@ -423,11 +473,11 @@ public class BattleManager : MonoBehaviour
                     break;
 
                 case "ChoiceMulti":
-                    // ¦ BlockŒø‰Ê’†‚Ì ChoiceMulti ‚Íu“ü—ÍŒ ŒÀ‚ª‚ ‚é‘¤i=‚±‚Ì’[––‚ÌƒvƒŒƒCƒ„[jv‚Ì‚İÀsi‚Ü‚¸‚ÍÅ’áŒÀj
+                    // â€» BlockåŠ¹æœä¸­ã® ChoiceMulti ã¯ã€Œå…¥åŠ›æ¨©é™ãŒã‚ã‚‹å´ï¼ˆ=ã“ã®ç«¯æœ«ã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ï¼‰ã€ã®ã¿å®Ÿè¡Œï¼ˆã¾ãšã¯æœ€ä½é™ï¼‰
                     yield return StartCoroutine(DoChoiceMultiBlockRoutine(defender, attacker, blockCard, v));
                     break;
 
-                // ApplyBlockEffect ‚Ì switch(t) ‚Ì’†‚É’Ç‰ÁiDraw ‚ÌŒã‚ ‚½‚è‚ª•ª‚©‚è‚â‚·‚¢j
+                // ApplyBlockEffect ã® switch(t) ã®ä¸­ã«è¿½åŠ ï¼ˆDraw ã®å¾Œã‚ãŸã‚ŠãŒåˆ†ã‹ã‚Šã‚„ã™ã„ï¼‰
                 case "SelectDiscardSelf":
                     // value: "ALL" or number (e.g. "2")
                     if (v == "ALL")
@@ -440,29 +490,61 @@ public class BattleManager : MonoBehaviour
                     }
                     break;
 
+                // â˜…è¿½åŠ ï¼šã‚¿ãƒ¼ãƒ³çµ‚äº†ç³»ï¼ˆBlockã‹ã‚‰ç›¸æ‰‹ã‚¿ãƒ¼ãƒ³ã‚’é£›ã°ã™/æ®‹ã‚ŠåŠ¹æœã‚‚ã‚¹ã‚­ãƒƒãƒ—ã—ãŸã„æ™‚ç”¨ï¼‰
+                case "EndTurn":
+                    {
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null && defender != null && defender.Object != null)
+                        {
+                            gm.TryEndTurnByEffectHost(defender.Object.InputAuthority, 0, true);
+                        }
+                    }
+                    break;
+
+                case "EndTurnIfMyTurn":
+                    {
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null && defender != null && defender.Object != null)
+                        {
+                            gm.TryEndTurnByEffectHost(defender.Object.InputAuthority, 1, true);
+                        }
+                    }
+                    break;
+
+                case "EndTurnIfOpponentTurn":
+                    {
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null && defender != null && defender.Object != null)
+                        {
+                            gm.TryEndTurnByEffectHost(defender.Object.InputAuthority, 2, true);
+                        }
+                    }
+                    break;
+
+
 
                 default:
                     if (EffectProcessWindow.Instance != null)
-                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"–¢‘Î‰‚ÌBlockŒø‰Ê: {t}(’l: {v})", 1.0f, false));
+                        yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"æœªå¯¾å¿œã®BlockåŠ¹æœ: {t}(å€¤: {v})", 1.0f, false));
                     else
                         yield return new WaitForSeconds(1.0f);
                     break;
             }
         }
 
-        // BlockƒJ[ƒh‚ªAttackŒø‰Ê‚ğ‚Âê‡ ¨ ”½Œ‚
+        // Blockã‚«ãƒ¼ãƒ‰ãŒAttackåŠ¹æœã‚’æŒã¤å ´åˆ â†’ åæ’ƒ
         if (hasCounterAttack)
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"{blockCard.name} ‚Ì”½Œ‚Œø‰Ê‚ğ”­“®I", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"{blockCard.name} ã®åæ’ƒåŠ¹æœã‚’ç™ºå‹•ï¼", 1.0f, false));
             else
                 yield return new WaitForSeconds(1.0f);
 
-            // ”½Œ‚‚ÍuBlock‚µ‚½‘¤(defender) ¨ UŒ‚‚µ‚Ä‚«‚½‘¤(attacker)v‚ÉŒÅ’è
+            // åæ’ƒã¯ã€ŒBlockã—ãŸå´(defender) â†’ æ”»æ’ƒã—ã¦ããŸå´(attacker)ã€ã«å›ºå®š
             PlayerManager counterAttacker = defender;
             PlayerManager counterDefender = attacker;
 
-            // ”½Œ‚‚Ég‚¤ƒJ[ƒhiw’è‚ª‚ ‚ê‚Î‚»‚êA–³‚¯‚ê‚ÎblockCard‚ğ‚»‚Ì‚Ü‚Üg‚¤j
+            // åæ’ƒã«ä½¿ã†ã‚«ãƒ¼ãƒ‰ï¼ˆæŒ‡å®šãŒã‚ã‚Œã°ãã‚Œã€ç„¡ã‘ã‚Œã°blockCardã‚’ãã®ã¾ã¾ä½¿ã†ï¼‰
             CardGenerator.CardData counterCard = blockCard;
 
             var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
@@ -483,8 +565,8 @@ public class BattleManager : MonoBehaviour
 
 
 
-        // š BlockƒJ[ƒhg—pŒã ¨ èD‚©‚çíœ‚µ‚ÄÌ‚ÄD‚Ö‘—‚é
-        // AttackŒø‰Êi”½Œ‚j‚ğ‚Âê‡‚ÍA”½Œ‚‚ªŠ®‘S‚ÉI‚í‚Á‚Ä‚©‚çÌ‚ÄD‚Ö‘—‚é
+        // â˜… Blockã‚«ãƒ¼ãƒ‰ä½¿ç”¨å¾Œ â†’ æ‰‹æœ­ã‹ã‚‰å‰Šé™¤ã—ã¦æ¨ã¦æœ­ã¸é€ã‚‹
+        // AttackåŠ¹æœï¼ˆåæ’ƒï¼‰ã‚’æŒã¤å ´åˆã¯ã€åæ’ƒãŒå®Œå…¨ã«çµ‚ã‚ã£ã¦ã‹ã‚‰æ¨ã¦æœ­ã¸é€ã‚‹
         if (defender != null && blockCard != null)
         {
             if (!hasAttack)
@@ -494,7 +576,7 @@ public class BattleManager : MonoBehaviour
             else
             {
                 if (EffectProcessWindow.Instance != null)
-                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("”½Œ‚Š®—¹BBlockƒJ[ƒh‚ğÌ‚ÄD‚Ö‘—‚è‚Ü‚·B", 1.0f, false));
+                    yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("åæ’ƒå®Œäº†ã€‚Blockã‚«ãƒ¼ãƒ‰ã‚’æ¨ã¦æœ­ã¸é€ã‚Šã¾ã™ã€‚", 1.0f, false));
                 else
                     yield return new WaitForSeconds(1.0f);
                 SendBlockToDiscard(defender, blockCard);
@@ -504,9 +586,9 @@ public class BattleManager : MonoBehaviour
         onNegateResult?.Invoke(negated);
     }
     // ============================================================
-    //  BlockŒø‰ÊFSelectDiscardSelfièD‚©‚çw’è–‡”‚ğ‘I‚ñ‚ÅÌ‚Ä‚éj
-    //  - HandDiscardSelectManager ‚ğŠJ‚­‚Ì‚Íu‚»‚ÌƒvƒŒƒCƒ„[‚Ì“ü—ÍŒ ŒÀ‘¤v‚¾‚¯
-    //  - Host‘¤‚Í handCount ‚Ì•Ï‰»‚ğ‘Ò‚Á‚Äˆ—‚ğ‘±s‚·‚é
+    //  BlockåŠ¹æœï¼šSelectDiscardSelfï¼ˆæ‰‹æœ­ã‹ã‚‰æŒ‡å®šæšæ•°ã‚’é¸ã‚“ã§æ¨ã¦ã‚‹ï¼‰
+    //  - HandDiscardSelectManager ã‚’é–‹ãã®ã¯ã€Œãã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®å…¥åŠ›æ¨©é™å´ã€ã ã‘
+    //  - Hostå´ã¯ handCount ã®å¤‰åŒ–ã‚’å¾…ã£ã¦å‡¦ç†ã‚’ç¶šè¡Œã™ã‚‹
     // ============================================================
     private IEnumerator DoSelectDiscardSelfFromBlock(PlayerManager target, int requested)
     {
@@ -515,7 +597,7 @@ public class BattleManager : MonoBehaviour
         var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
         if (gm == null) yield break;
 
-        // Attackˆ—‚ÍHost‚ª‰ñ‚·‘O’ñ
+        // Attackå‡¦ç†ã¯HostãŒå›ã™å‰æ
         if (gm.Object == null || !gm.Object.HasStateAuthority) yield break;
         if (gm.players == null) yield break;
 
@@ -537,16 +619,16 @@ public class BattleManager : MonoBehaviour
 
         if (discardCount <= 0) yield break;
 
-        // ‰‰oi’Z‚ßj
+        // æ¼”å‡ºï¼ˆçŸ­ã‚ï¼‰
         if (EffectProcessWindow.Instance != null)
-            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"èD‚©‚ç {discardCount} –‡Ì‚Ä‚Ü‚·B", 0.6f, false));
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"æ‰‹æœ­ã‹ã‚‰ {discardCount} æšæ¨ã¦ã¾ã™ã€‚", 0.6f, false));
         else
             yield return new WaitForSeconds(0.6f);
 
-        // ‘I‘ğUI‚ğŠJ‚­iÀÛ‚ÉŠJ‚­‚Ì‚Í inputAuthority ‚ÌƒNƒ‰ƒCƒAƒ“ƒg‚¾‚¯j
+        // é¸æŠUIã‚’é–‹ãï¼ˆå®Ÿéš›ã«é–‹ãã®ã¯ inputAuthority ã®ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã ã‘ï¼‰
         gm.RPC_OpenSelectDiscardSelf(targetIndex, discardCount);
 
-        // Host‚Í handCount ‚ªŒ¸‚é‚Ì‚ğ‘Ò‚ÂiHandDiscardSelectManager¨RPC_RequestDiscardFromHand ‚ÅXV‚³‚ê‚éj
+        // Hostã¯ handCount ãŒæ¸›ã‚‹ã®ã‚’å¾…ã¤ï¼ˆHandDiscardSelectManagerâ†’RPC_RequestDiscardFromHand ã§æ›´æ–°ã•ã‚Œã‚‹ï¼‰
         int expected = before - discardCount;
         yield return new WaitUntil(() => target.handCount == expected);
     }
@@ -582,9 +664,9 @@ public class BattleManager : MonoBehaviour
     }
 
     // ============================================================
-    //  ChoiceMultiiBlockŒø‰Ê“à‚Å‚ÌÅ’áŒÀ‘Î‰j
-    //  - defender ‚ª‚±‚Ì’[––‚Ì InputAuthority ‚ğ‚Âê‡‚Ì‚İ UI ‚ğŠJ‚¢‚ÄÀs‚µ‚Ü‚·
-    //  - ‚Ü‚¾u‘Šè‘¤ƒNƒ‰ƒCƒAƒ“ƒg‚ÉUI‚ğŠJ‚©‚¹‚év“¯Šú‚Ü‚Å‚ÍÀ‘•‚µ‚Ä‚¢‚Ü‚¹‚ñ
+    //  ChoiceMultiï¼ˆBlockåŠ¹æœå†…ã§ã®æœ€ä½é™å¯¾å¿œï¼‰
+    //  - defender ãŒã“ã®ç«¯æœ«ã® InputAuthority ã‚’æŒã¤å ´åˆã®ã¿ UI ã‚’é–‹ã„ã¦å®Ÿè¡Œã—ã¾ã™
+    //  - ã¾ã ã€Œç›¸æ‰‹å´ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆã«UIã‚’é–‹ã‹ã›ã‚‹ã€åŒæœŸã¾ã§ã¯å®Ÿè£…ã—ã¦ã„ã¾ã›ã‚“
     // ============================================================
 
     private class ChoiceMultiOptionDef_BM
@@ -601,7 +683,7 @@ public class BattleManager : MonoBehaviour
 
         if (string.IsNullOrEmpty(raw)) return false;
 
-        string[] parts = raw.Split(new char[] { ';', 'G', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = raw.Split(new char[] { ';', 'ï¼›', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var p0 in parts)
         {
@@ -661,7 +743,7 @@ public class BattleManager : MonoBehaviour
 
                 if (!string.IsNullOrEmpty(effectChain))
                 {
-                    string[] effs = effectChain.Split(new char[] { '|', 'b' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    string[] effs = effectChain.Split(new char[] { '|', 'ï½œ' }, System.StringSplitOptions.RemoveEmptyEntries);
                     foreach (var e0 in effs)
                     {
                         string e = (e0 ?? "").Trim();
@@ -702,11 +784,11 @@ public class BattleManager : MonoBehaviour
         if (!TryParseChoiceMultiValue_BM(rawValue, out int pickMax, out int sameMax, out List<ChoiceMultiOptionDef_BM> options))
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti value ‚ª•s³‚Å‚·: {rawValue}", 1.0f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti value ãŒä¸æ­£ã§ã™: {rawValue}", 1.0f, false));
             yield break;
         }
 
-        // --- Host‚ªu‘I‘ğÒ‚Ì’[––v‚ÉUI‚ğŠJ‚©‚¹‚é ---
+        // --- HostãŒã€Œé¸æŠè€…ã®ç«¯æœ«ã€ã«UIã‚’é–‹ã‹ã›ã‚‹ ---
         int sessionId = ++choiceMultiSessionSeq;
 
         expectedChoiceMultiSessionId = sessionId;
@@ -726,11 +808,11 @@ public class BattleManager : MonoBehaviour
         if (pickedCounts == null || pickedCounts.Length == 0)
         {
             if (EffectProcessWindow.Instance != null)
-                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("ChoiceMulti: ‘I‘ğŒ‹‰Ê‚ª‹ó‚Ì‚½‚ßˆ—‚ğ’†~‚µ‚Ü‚·B", 0.8f, false));
+                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("ChoiceMulti: é¸æŠçµæœãŒç©ºã®ãŸã‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", 0.8f, false));
             yield break;
         }
 
-        // --- •¶Í‚Ìã‚©‚ç‡”Ô‚ÉÀs ---
+        // --- æ–‡ç« ã®ä¸Šã‹ã‚‰é †ç•ªã«å®Ÿè¡Œ ---
         for (int i = 0; i < options.Count; i++)
         {
             int times = (i < pickedCounts.Length) ? pickedCounts[i] : 0;
@@ -748,7 +830,7 @@ public class BattleManager : MonoBehaviour
 
                     if (string.IsNullOrEmpty(t)) continue;
 
-                    // š‚±‚±‚Í‚Ü‚¸u“ü—Í•s—vv‚ÌŒø‰Ê‚¾‚¯‘Î‰iˆÀ‘S”Åj
+                    // â˜…ã“ã“ã¯ã¾ãšã€Œå…¥åŠ›ä¸è¦ã€ã®åŠ¹æœã ã‘å¯¾å¿œï¼ˆå®‰å…¨ç‰ˆï¼‰
                     switch (t)
                     {
                         case "Draw":
@@ -780,7 +862,7 @@ public class BattleManager : MonoBehaviour
                         case "RandomDiscardSelf":
                             if (int.TryParse(v, out int rds))
                             {
-                                // Host‘¤‚ÅÀsiRPCŠÖ”‚¾‚ªStateAuthority‚Ö”ò‚Ô‚Ì‚ÅOKj
+                                // Hostå´ã§å®Ÿè¡Œï¼ˆRPCé–¢æ•°ã ãŒStateAuthorityã¸é£›ã¶ã®ã§OKï¼‰
                                 gm.RPC_RequestRandomDiscard(defender.Object.InputAuthority, defender.Object.InputAuthority, rds);
                             }
                             break;
@@ -800,7 +882,7 @@ public class BattleManager : MonoBehaviour
                                     if (v == "OPPONENT") targetMode = 1;
                                     else if (v == "BOTH") targetMode = 2;
 
-                                    // u‚±‚ÌBlockƒJ[ƒh‚ğg‚Á‚½‘¤(defender)v‚ğ requester ‚Æ‚µ‚Ä••ˆó‚ğ•t—^
+                                    // ã€Œã“ã®Blockã‚«ãƒ¼ãƒ‰ã‚’ä½¿ã£ãŸå´(defender)ã€ã‚’ requester ã¨ã—ã¦å°å°ã‚’ä»˜ä¸
                                     gm.RPC_RequestApplyLifeDefenceSeal(defender.Object.InputAuthority, targetMode);
                                 }
                                 break;
@@ -809,11 +891,11 @@ public class BattleManager : MonoBehaviour
 
                         default:
                             if (EffectProcessWindow.Instance != null)
-                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti(Block“à): –¢‘Î‰‚ÌŒø‰Ê [{t}] ‚ğƒXƒLƒbƒv‚µ‚Ü‚µ‚½B", 0.8f, false));
+                                yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"ChoiceMulti(Blockå†…): æœªå¯¾å¿œã®åŠ¹æœ [{t}] ã‚’ã‚¹ã‚­ãƒƒãƒ—ã—ã¾ã—ãŸã€‚", 0.8f, false));
                             break;
                     }
 
-                    // 1ƒtƒŒ[ƒ€‚¾‚¯i‚ß‚ÄUI/“¯Šú‚ğ—‚¿’…‚©‚¹‚é
+                    // 1ãƒ•ãƒ¬ãƒ¼ãƒ ã ã‘é€²ã‚ã¦UI/åŒæœŸã‚’è½ã¡ç€ã‹ã›ã‚‹
                     yield return null;
                 }
             }

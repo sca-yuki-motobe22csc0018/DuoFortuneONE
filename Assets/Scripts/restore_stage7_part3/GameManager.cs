@@ -1216,9 +1216,9 @@ public class GameManager : NetworkBehaviour
             battleManager.EnqueueAttack(attacker, defender, attackData, attackerRef, requestId);
         }
     }
-    // ★ Attack完了通知：Host -> 全員
+    // ★ Attack完了通知：Host -> 全員（attacker本人だけが受け取る）
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    public void RPC_AttackResolved(PlayerRef attackerRef, int requestId)
+    public void RPC_AttackResolvedWithSkip(PlayerRef attackerRef, int requestId, bool skipRemainingEffects)
     {
         // attacker本人の端末だけが、このrequestIdを完了として受け取ればOK
         if (runner == null) runner = FindAnyObjectByType<NetworkRunner>();
@@ -1226,8 +1226,68 @@ public class GameManager : NetworkBehaviour
 
         if (runner.LocalPlayer != attackerRef) return;
 
-        CardGenerator.NotifyAttackResolved(requestId);
+        CardGenerator.NotifyAttackResolved(requestId, skipRemainingEffects);
     }
+
+    // 既存互換（skipなし）
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_AttackResolved(PlayerRef attackerRef, int requestId)
+    {
+        if (runner == null) runner = FindAnyObjectByType<NetworkRunner>();
+        if (runner == null) return;
+
+        if (runner.LocalPlayer != attackerRef) return;
+
+        CardGenerator.NotifyAttackResolved(requestId, false);
+    }
+
+    // ============================================================
+    // ターン終了系（効果発動による：自分/相手/どちらのターンでも）
+    // mode: 0=any / 1=my turn only / 2=opponent turn only
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestEndTurnByEffect(PlayerRef requester, int mode, bool skipOpponentCardRemainingEffects)
+    {
+        TryEndTurnByEffectHost(requester, mode, skipOpponentCardRemainingEffects);
+    }
+
+    // ★Host専用：判定してターンを終了する
+    public void TryEndTurnByEffectHost(PlayerRef requester, int mode, bool skipOpponentCardRemainingEffects)
+    {
+        if (_isGameOver) return;
+        if (players == null || players.Count < 2) return;
+        if (Object == null || !Object.HasStateAuthority) return;
+
+        int requesterIndex = FindPlayerIndexByRef(requester);
+        if (requesterIndex < 0) return;
+
+        bool shouldEnd = false;
+        switch (mode)
+        {
+            case 0: shouldEnd = true; break;                            // どちらのターンでも終了
+            case 1: shouldEnd = (requesterIndex == currentPlayerIndex); break; // 自分のターンなら終了
+            case 2: shouldEnd = (requesterIndex != currentPlayerIndex); break; // 相手のターンなら終了
+            default: shouldEnd = true; break;
+        }
+
+        if (!shouldEnd) return;
+
+        // ★攻撃処理中なら、攻撃カードの残り効果スキップを予約
+        if (skipOpponentCardRemainingEffects && battleManager != null)
+        {
+            battleManager.MarkSkipRemainingEffectsForCurrentAttack(requester);
+        }
+
+        if (turnChoicePanel != null)
+            turnChoicePanel.SetActive(false);
+
+        if (endTurnButton != null)
+            endTurnButton.interactable = false;
+
+        NextTurn();
+    }
+
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_OpenBlockChoice(PlayerRef defenderRef)
