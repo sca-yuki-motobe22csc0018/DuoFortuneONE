@@ -1914,6 +1914,8 @@ public class GameManager : NetworkBehaviour
             }
         }
 
+
+
         // ▼追加：捨てたカードは両者に表示（大量になり得るのでグリッド＆同IDは枚数表示でまとめる）
         if (CardMovePopupManager.Instance != null)
         {
@@ -1932,6 +1934,114 @@ public class GameManager : NetworkBehaviour
             targetPM.UpdateHandCountUI(); // 自分画面の即時反映
         }
     }
+
+    // ============================================================
+    //  手札の入れ替え（Host確定）
+    //  自分と相手の手札を丸ごと交換する
+    // ============================================================
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestSwapHands(PlayerRef requester)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+        if (players == null || players.Count < 2) return;
+
+        // Hostの手札IDリストを丸ごとスワップ
+        var tmp = hostHandIdsP0;
+        hostHandIdsP0 = hostHandIdsP1;
+        hostHandIdsP1 = tmp;
+
+        // handCount を確定（相手の裏面枚数表示に使われる）
+        if (players[0] != null) players[0].handCount = hostHandIdsP0.Count;
+        if (players[1] != null) players[1].handCount = hostHandIdsP1.Count;
+
+        // 全員に適用（各端末で “自分の手札実体” を作り直す）
+        RPC_ApplySwapHands(hostHandIdsP0.ToArray(), hostHandIdsP1.ToArray());
+
+        // EX勝利が成立してたら即チェック（手札が入れ替わった瞬間に揃うケースがある）
+        TryCheckEx001Win(0);
+        TryCheckEx001Win(1);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ApplySwapHands(int[] p0Hand, int[] p1Hand)
+    {
+        if (players == null || players.Count < 2) return;
+
+        if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
+        if (deckManager == null)
+        {
+            Debug.LogError("RPC_ApplySwapHands: deckManager が見つかりません。");
+            return;
+        }
+
+        // “自分” の PlayerManager を探す（InputAuthority のみ手札実体を作る）
+        int localIndex = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (players[i] != null && players[i].Object != null && players[i].Object.HasInputAuthority)
+            {
+                localIndex = i;
+                break;
+            }
+        }
+        if (localIndex < 0) return;
+
+        var localPM = players[localIndex];
+        if (localPM == null || localPM.handManager == null) return;
+
+        int[] myHand = (localIndex == 0) ? p0Hand : p1Hand;
+
+        RebuildLocalHand(localPM, myHand);
+    }
+
+    // 対象本人の端末だけで実行される「手札実体の総入れ替え」
+    private void RebuildLocalHand(PlayerManager pm, int[] newHandIds)
+    {
+        if (pm == null || pm.handManager == null) return;
+
+        // 1) いまの手札実体を全削除（handCards + 念のための取りこぼしも）
+        var toDestroy = new HashSet<GameObject>();
+
+        foreach (var go in pm.handManager.handCards)
+        {
+            if (go != null) toDestroy.Add(go);
+        }
+
+        // 念のため：手札リストから外れてるカード（ドラッグ中など）も消す
+        var cgs = pm.handManager.GetComponentsInChildren<CardGenerator>(true);
+        foreach (var cg in cgs)
+        {
+            if (cg != null && cg.cardData != null && cg.gameObject != null)
+                toDestroy.Add(cg.gameObject);
+        }
+
+        foreach (var go in toDestroy)
+        {
+            if (go != null) Destroy(go);
+        }
+
+        pm.handManager.handCards.Clear();
+
+        // 2) 新しいID配列で手札を再生成
+        if (newHandIds != null)
+        {
+            foreach (var id in newHandIds)
+            {
+                var data = deckManager.GetCardDataById(id);
+                if (data != null)
+                {
+                    pm.handManager.AddCardFromData(data);
+                }
+            }
+        }
+
+        // 3) 並べ直し＆自分画面のUI更新
+        pm.handManager.UpdateCardPositions();
+        pm.UpdateHandCountUI();
+    }
+
 
 
     // 対象本人の端末だけで実行される「手札実体の削除」
@@ -2287,6 +2397,33 @@ public class GameManager : NetworkBehaviour
 
         RPC_SyncAddDiscard(cardId);
     }
+
+    // ============================================================
+    //  ★追加：使用確定した手札カードを「手札IDリスト」から先に抜く
+    //  - SwapHands / ハンデス / ランダム破壊 などで「使用中カード」を対象に含めないため
+    //  - 捨て札へ入れるのは従来どおり効果終了時（RPC_RequestAddDiscard）
+    // ============================================================
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestConsumeHandCardForUse(PlayerRef requester, int cardId)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+        if (players == null || players.Count < 2) return;
+        if (cardId <= 0) return;
+
+        int pIndex = FindPlayerIndexByRef(requester);
+        if (pIndex < 0) return;
+
+        var list = GetHostHandIdList(pIndex);
+        if (list == null) return;
+
+        // 既に抜けているなら何もしない（多重呼び出し保険）
+        if (!list.Remove(cardId)) return;
+
+        if (players[pIndex] != null)
+            players[pIndex].handCount = list.Count;
+    }
+
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_OpenChoiceMulti(PlayerRef chooserRef, int sessionId, int sourceCardId, string rawValue)

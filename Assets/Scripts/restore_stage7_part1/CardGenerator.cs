@@ -521,6 +521,8 @@ public class CardGenerator : MonoBehaviour,
         if (gm != null && runner != null)
         {
             gm.RPC_RequestSpendMana(runner.LocalPlayer, myData.cost);
+
+            gm.RPC_RequestConsumeHandCardForUse(runner.LocalPlayer, myData.id);
         }
         else
         {
@@ -677,6 +679,9 @@ public class CardGenerator : MonoBehaviour,
             case "LifeAdd":
             case "EndTurn":
             case "EndTurnIfMyTurn":
+            case "SwapHands":
+                return true;
+
             case "Defence":
                 return true;
             default:
@@ -824,6 +829,11 @@ public class CardGenerator : MonoBehaviour,
             case "SealCost":
                 yield return StartCoroutine(DoSealCostDeclareRoutine(value));
                 break;
+
+            case "SwapHands":
+                yield return StartCoroutine(DoSwapHandsRoutine());
+                break;
+
 
             case "EndTurnIfOpponentTurn":
                 yield return StartCoroutine(DoEndTurnIfOpponentTurnRoutine());
@@ -1555,6 +1565,24 @@ public class CardGenerator : MonoBehaviour,
         }
     }
 
+    private IEnumerator DoSwapHandsRoutine()
+    {
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+        var runner = FindAnyObjectByType<NetworkRunner>();
+
+        if (gm == null || runner == null)
+            yield break;
+
+        if (EffectProcessWindow.Instance != null)
+            yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("手札を入れ替えます。", 0.6f, false));
+        else
+            yield return new WaitForSeconds(0.6f);
+
+        gm.RPC_RequestSwapHands(runner.LocalPlayer);
+
+        // UIが落ち着くための1フレーム待ち（任意）
+        yield return null;
+    }
 
     private void Update()
     {
