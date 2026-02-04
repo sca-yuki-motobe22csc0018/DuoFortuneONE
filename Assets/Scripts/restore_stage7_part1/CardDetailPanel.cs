@@ -15,6 +15,11 @@ public class CardDetailPanel : MonoBehaviour
     public TMP_Text descriptionText;
     public Button closeButton;
 
+    public Image AttackBack;
+    public Image BlockBack;
+    public Image DefenceBack;
+    public Image ExBack;
+
     [Header("Prefabs")]
     public GameObject cardUIPrefab; // ← 捨て札と同じUIカードPrefab
 
@@ -61,15 +66,31 @@ public class CardDetailPanel : MonoBehaviour
             {
                 case "A":
                     typeDisplay = "Attack";
+                    AttackBack.gameObject.SetActive(true);
+                    BlockBack.gameObject.SetActive(false);
+                    DefenceBack.gameObject.SetActive(false);
+                    ExBack.gameObject.SetActive(false);
                     break;
                 case "B":
                     typeDisplay = "Block";
+                    AttackBack.gameObject.SetActive(false);
+                    BlockBack.gameObject.SetActive(true);
+                    DefenceBack.gameObject.SetActive(false);
+                    ExBack.gameObject.SetActive(false);
                     break;
                 case "D":
                     typeDisplay = "Defence";
+                    AttackBack.gameObject.SetActive(false);
+                    BlockBack.gameObject.SetActive(false);
+                    DefenceBack.gameObject.SetActive(true);
+                    ExBack.gameObject.SetActive(false);
                     break;
                 case "E":
                     typeDisplay = "EX";
+                    AttackBack.gameObject.SetActive(false);
+                    BlockBack.gameObject.SetActive(false);
+                    DefenceBack.gameObject.SetActive(false);
+                    ExBack.gameObject.SetActive(true);
                     break;
                 default:
                     typeDisplay = data.type; // そのまま表示

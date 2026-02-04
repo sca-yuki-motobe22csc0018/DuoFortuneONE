@@ -39,6 +39,7 @@ public class DiscardManager : MonoBehaviour
     public GameObject discardWindowPanel;              // DiscardButtonで開く専用Panel
     public Transform discardWindowGridParent;          // 一覧の親(Content)
     public GameObject discardWindowCardDisplayPrefab;  // 一覧に並べるCardUI
+    public GameObject discardWindowCloseButton;        // 閉じるボタン（任意）
     public TMP_Text discardWindowMessage;              // 「捨て札はありません」等の表示（任意）
     private Coroutine discardWindowMessageRoutine;
 
