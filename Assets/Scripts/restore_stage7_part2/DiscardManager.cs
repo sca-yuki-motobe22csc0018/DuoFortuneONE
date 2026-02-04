@@ -35,17 +35,12 @@ public class DiscardManager : MonoBehaviour
     [Header("プレイ用Prefab")]
     public GameObject cardPlayablePrefab;
 
-    [Header("ScrollView サイズ・位置調整")]
-    public RectTransform discardScrollView;
-
-    // 通常時
-    public Vector2 normalSize = new Vector2(0, 600);
-    public Vector2 normalPos = new Vector2(0, 0);
-
-    // 回収モード時
-    public Vector2 recoverSize = new Vector2(0, 300);
-    public Vector2 recoverPos = new Vector2(0, 150);
-
+    [Header("Discard Window UI (separate)")]
+    public GameObject discardWindowPanel;              // DiscardButtonで開く専用Panel
+    public Transform discardWindowGridParent;          // 一覧の親(Content)
+    public GameObject discardWindowCardDisplayPrefab;  // 一覧に並べるCardUI
+    public TMP_Text discardWindowMessage;              // 「捨て札はありません」等の表示（任意）
+    private Coroutine discardWindowMessageRoutine;
 
     private bool isOpen = false;
     private bool isRecoverMode = false;
@@ -91,6 +86,8 @@ public class DiscardManager : MonoBehaviour
         if (confirmPanel != null) confirmPanel.SetActive(false);
         if (recoverZonePanel != null) recoverZonePanel.SetActive(false); // ← 初期は非表示
         if (recoverLimitText != null) recoverLimitText.gameObject.SetActive(false); // ← 追加
+        if (discardWindowPanel != null) discardWindowPanel.SetActive(false);
+
     }
 
     // 捨て札に追加
@@ -98,7 +95,9 @@ public class DiscardManager : MonoBehaviour
     {
         if (data == null) return;
         discardDataList.Add(data);
-        if (isOpen) BuildFullView();
+
+        if (isOpen) BuildDiscardWindowView();     // 追加
+        if (isRecoverMode) BuildFullView();       // 既存（回収画面）
     }
 
     // 指定IDのカードを捨て札から1枚だけ削除（同期用）
@@ -108,19 +107,52 @@ public class DiscardManager : MonoBehaviour
         if (toRemove != null)
         {
             discardDataList.Remove(toRemove);
-            if (isOpen) BuildFullView();
+
+            if (isOpen) BuildDiscardWindowView(); // 追加
+            if (isRecoverMode) BuildFullView();   // 既存（回収画面）
         }
     }
+
 
     // 捨て札一覧の開閉
     public void OnDiscardClicked()
     {
+        // 回収中は別画面を使うので、捨て札ウインドウは開かない
+        if (isRecoverMode) return;
+
         isOpen = !isOpen;
+
+        // 新UIが設定されている場合はそちらを使う
+        if (discardWindowPanel != null && discardWindowGridParent != null && discardWindowCardDisplayPrefab != null)
+        {
+            if (isOpen)
+            {
+                if (discardDataList.Count == 0)
+                {
+                    ShowDiscardWarning("捨て札はありません。", 1f);
+                    isOpen = false;
+                    discardWindowPanel.SetActive(false);
+                    ClearDiscardWindowView();
+                    return;
+                }
+
+                discardWindowPanel.SetActive(true);
+                BuildDiscardWindowView();
+            }
+            else
+            {
+                discardWindowPanel.SetActive(false);
+                ClearDiscardWindowView();
+            }
+
+            return;
+        }
+
+        // 旧構成フォールバック（未設定なら従来通り）
         if (fullViewPanel == null || gridParent == null || cardDisplayPrefab == null) return;
 
         if (isOpen)
         {
-            // ★ 0枚なら「捨て札はありません」と軽く出してすぐ閉じる
             if (discardDataList.Count == 0)
             {
                 ShowDiscardWarning("捨て札はありません。", 1f);
@@ -139,6 +171,7 @@ public class DiscardManager : MonoBehaviour
             ClearFullView();
         }
     }
+
 
 
     private void BuildFullView()
@@ -173,6 +206,44 @@ public class DiscardManager : MonoBehaviour
         }
     }
 
+    private void BuildDiscardWindowView()
+    {
+        if (discardWindowGridParent == null || discardWindowCardDisplayPrefab == null) return;
+
+        ClearDiscardWindowView();
+
+        var grouped = discardDataList
+            .Where(d => d != null)
+            .GroupBy(d => d.id)
+            .OrderBy(g => g.Key);
+
+        foreach (var g in grouped)
+        {
+            var data = g.First();
+            int count = g.Count();
+
+            GameObject ui = Instantiate(discardWindowCardDisplayPrefab, discardWindowGridParent);
+
+            var cardUI = ui.GetComponent<CardUI>();
+            if (cardUI != null)
+                cardUI.SetCard(data, count, this, CardUISource.DiscardZone);
+
+            var detail = ui.GetComponent<CardUIDetail>();
+            if (detail != null) detail.Init(data);
+        }
+    }
+
+    private void ClearDiscardWindowView()
+    {
+        if (discardWindowGridParent == null) return;
+
+        for (int i = discardWindowGridParent.childCount - 1; i >= 0; i--)
+        {
+            Destroy(discardWindowGridParent.GetChild(i).gameObject);
+        }
+    }
+
+
     private void ClearFullView()
     {
         for (int i = gridParent.childCount - 1; i >= 0; i--)
@@ -184,17 +255,31 @@ public class DiscardManager : MonoBehaviour
     public void CloseDiscard()
     {
         isOpen = false;
-        if (fullViewPanel != null)
-            fullViewPanel.SetActive(false);
-        ClearFullView();
+
+        if (discardWindowPanel != null)
+            discardWindowPanel.SetActive(false);
+
+        ClearDiscardWindowView();
     }
+
 
     // 回収モード開始
     // 回収モード開始
     public void StartRecoverMode(PlayerManager player, int count)
     {
+        // 捨て札ウインドウが開いていたら閉じる（画面は分離）
+        if (isOpen)
+        {
+            isOpen = false;
+            if (discardWindowPanel != null) discardWindowPanel.SetActive(false);
+            ClearDiscardWindowView();
+        }
+
+
         isRecoverComplete = false; // ★回収開始時にリセット
         isRecoverMode = true;
+
+
 
         // ★変更：捨て札が少ない場合は「全回収」扱いに寄せる（詰み防止）
         int total = discardDataList.Count(d => d != null);
@@ -216,11 +301,6 @@ public class DiscardManager : MonoBehaviour
         if (recoverZonePanel != null)
             recoverZonePanel.SetActive(true);
 
-        if (discardScrollView != null)
-        {
-            discardScrollView.sizeDelta = recoverSize;
-            discardScrollView.anchoredPosition = recoverPos;
-        }
 
         // ★追加：0なら選びようがないので即終了（保険）
         if (recoverCount <= 0)
@@ -381,26 +461,46 @@ public class DiscardManager : MonoBehaviour
 
     private void ShowDiscardWarning(string message, float duration = 1f)
     {
-        if (discardMessage == null) return;
+        TMP_Text target = null;
 
-        // 既に表示中なら止める
-        if (discardMessageRoutine != null)
-            StopCoroutine(discardMessageRoutine);
+        // 回収中は既存の discardMessage（回収画面側）を使う
+        if (isRecoverMode)
+            target = discardMessage;
+        else
+            target = (discardWindowMessage != null) ? discardWindowMessage : discardMessage;
 
-        discardMessageRoutine = StartCoroutine(ShowDiscardWarningRoutine(message, duration));
+        if (target == null) return;
+
+        if (target == discardMessage)
+        {
+            if (discardMessageRoutine != null)
+                StopCoroutine(discardMessageRoutine);
+
+            discardMessageRoutine = StartCoroutine(ShowDiscardWarningRoutine(target, message, duration));
+        }
+        else
+        {
+            if (discardWindowMessageRoutine != null)
+                StopCoroutine(discardWindowMessageRoutine);
+
+            discardWindowMessageRoutine = StartCoroutine(ShowDiscardWarningRoutine(target, message, duration));
+        }
     }
 
-    private IEnumerator ShowDiscardWarningRoutine(string message, float duration)
+    private IEnumerator ShowDiscardWarningRoutine(TMP_Text target, string message, float duration)
     {
-        discardMessage.gameObject.SetActive(true);
-        discardMessage.text = message;
+        target.gameObject.SetActive(true);
+        target.text = message;
 
         yield return new WaitForSecondsRealtime(duration);
 
-        discardMessage.text = "";
-        discardMessage.gameObject.SetActive(false);
-        discardMessageRoutine = null;
+        target.text = "";
+        target.gameObject.SetActive(false);
+
+        if (target == discardMessage) discardMessageRoutine = null;
+        if (target == discardWindowMessage) discardWindowMessageRoutine = null;
     }
+
 
 
     // OK
@@ -458,12 +558,6 @@ public class DiscardManager : MonoBehaviour
         if (recoverLimitText != null)
             recoverLimitText.gameObject.SetActive(false); // ← 非表示
 
-        // ★サイズと位置を元に戻す
-        if (discardScrollView != null)
-        {
-            discardScrollView.sizeDelta = normalSize;
-            discardScrollView.anchoredPosition = normalPos;
-        }
         EffectProcessWindow.Instance.ContinueProcess();
     }
 }
