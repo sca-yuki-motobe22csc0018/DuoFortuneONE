@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using DG.Tweening;
 
 public class DeckEditorUI : MonoBehaviour
 {
@@ -27,13 +28,21 @@ public class DeckEditorUI : MonoBehaviour
     public TMP_Dropdown deckSelectDropdown;
 
     List<string> currentDeck = new();
+    [SerializeField] Image deckFade;
+
+    [Header("SE")]
+    public AudioSource seSource;
+    public AudioClip seCenter; // センター用
+    public AudioClip seRight;  // ライト用
+
 
     void Start()
     {
         LoadDeckFromSave();
         RefreshCardList();
         RefreshDeckDisplay();
-
+        deckFade.raycastTarget = false;
+        deckFade.DOFade(0f, 1.0f);
         // デッキ切り替え
         deckSelectDropdown.onValueChanged.AddListener(_ => OnDeckChanged());
 
@@ -147,8 +156,12 @@ public class DeckEditorUI : MonoBehaviour
             obj.GetComponent<CardDisplayImageOnly>().SetCard(card, this);
 
             Button btn = obj.GetComponent<Button>();
-            btn.onClick.AddListener(() => AddCardToDeck(card));
-            btn.onClick.AddListener(() => ShowDetail(card));
+            btn.onClick.AddListener(() =>
+            {
+                PlayRightSE();          // ★ ライト用SE
+                AddCardToDeck(card);
+                ShowDetail(card);
+            });
         }
     }
 
@@ -177,7 +190,11 @@ public class DeckEditorUI : MonoBehaviour
             obj.GetComponent<CardDisplayImageOnly>().SetCard(info, this);
 
             Button btn = obj.GetComponent<Button>();
-            btn.onClick.AddListener(() => RemoveCardFromDeck(info));
+            btn.onClick.AddListener(() =>
+            {
+                PlayCenterSE();         // ★ センター用SE
+                RemoveCardFromDeck(info);
+            });
         }
 
         deckCountText.text = $"現在のデッキ枚数 {currentDeck.Count}/30";
@@ -256,6 +273,23 @@ public class DeckEditorUI : MonoBehaviour
 
     public void OnCloseButton()
     {
-        UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
+        deckFade.raycastTarget = true;//2/5追加
+        deckFade.DOFade(1f, 1.0f).OnComplete(() =>
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
+        });
     }
+
+    public void PlayCenterSE()
+    {
+        if (seSource && seCenter)
+            seSource.PlayOneShot(seCenter);
+    }
+
+    public void PlayRightSE()
+    {
+        if (seSource && seRight)
+            seSource.PlayOneShot(seRight);
+    }
+
 }

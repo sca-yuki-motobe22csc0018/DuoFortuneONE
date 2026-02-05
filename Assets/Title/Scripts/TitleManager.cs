@@ -7,6 +7,7 @@ public class TitleManager : MonoBehaviour
 {
     [SerializeField] TextMeshProUGUI clickStart;
     [SerializeField] Image title;
+    [SerializeField] Image fade;
 
     public Image frontImage;
     public Image backImage;
@@ -57,7 +58,7 @@ public class TitleManager : MonoBehaviour
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
-            gameEnd();
+            GameEnd();
 
         if (clickCheck && Input.GetMouseButtonDown(0) && !isStopped)
             StopAndFlipToBack();
@@ -290,8 +291,13 @@ public class TitleManager : MonoBehaviour
             btnRect.anchoredPosition = buttonTargetPos[i].anchoredPosition;
         }
 
+        DOTween.Sequence()
+               .Append(fade.DOFade(1.0f, 0.0f))
+               .Join(fade.DOFade(0.0f, 1.0f));
+
         clickCheck = false;
         isStopped = true;
+        fade.raycastTarget = false;//2/5追加
     }
     private void SetAlpha(Graphic g, float a)
     {
@@ -302,15 +308,25 @@ public class TitleManager : MonoBehaviour
 
     public void BattleScene()
     {
-        UnityEngine.SceneManagement.SceneManager.LoadScene("LobbyScene");
+        fade.raycastTarget = true;//2/5追加
+        Debug.Log("targeton");
+        fade.DOFade(1f, 1.0f).OnComplete(() =>
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("LobbyScene");
+        });
     }
 
     public void DeckScene()
     {
-        UnityEngine.SceneManagement.SceneManager.LoadScene("DeckBuilding");
+        fade.raycastTarget = true;//2/5追加
+        Debug.Log("targeton");
+        fade.DOFade(1f, 1.0f).OnComplete(() =>
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("DeckBuilding");
+        });
     }
 
-    public void gameEnd()
+    public void GameEnd()
     {
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
