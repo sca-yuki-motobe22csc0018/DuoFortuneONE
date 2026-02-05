@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 285e82f62435b344ebaeda7119f1bb4d, type: 3}
+  m_Name: AudioLibrary
+  m_EditorClassIdentifier: 
+  bgmMainGame: {fileID: 8300000, guid: 84611c31b7c5b2f4cafe39018939e07c, type: 3}
+  bgmResult: {fileID: 8300000, guid: 3331ce6435b71464480f5454fe47aed2, type: 3}
+  uiClickOK: {fileID: 8300000, guid: 8f17b2aa68ca8084f8cfde0fa7254c52, type: 3}
+  uiClickCancel: {fileID: 8300000, guid: 64b041c0d2aa4d34a8576b5715778462, type: 3}
+  uiClickGeneric: {fileID: 8300000, guid: 261ff2a9f9b9fef43a02a2fb9099f63f, type: 3}
+  uiHoverHandCard: {fileID: 8300000, guid: 021935b68735f894bbe1b315c4297942, type: 3}
+  sfxCardMove: {fileID: 8300000, guid: 4e20dc05d7714c145abd8ef9d2373c31, type: 3}
+  sfxLifeBreak: {fileID: 8300000, guid: a453798b2f5f62144acae801076a77c8, type: 3}
+  sfxCardUse: {fileID: 8300000, guid: 4e20dc05d7714c145abd8ef9d2373c31, type: 3}
+  sfxTurnStart: {fileID: 8300000, guid: d14637811ede42c40b44596763e56509, type: 3}
+  sfxTurnEnd: {fileID: 8300000, guid: 8f17b2aa68ca8084f8cfde0fa7254c52, type: 3}
+  sfxVictory: {fileID: 8300000, guid: d14637811ede42c40b44596763e56509, type: 3}
+  sfxDefeat: {fileID: 8300000, guid: f0cd99ac0d13bc34ebbdc5ab916b1b6c, type: 3}
+  sfxManaMaxUp: {fileID: 8300000, guid: 6129f9cc626cb4c4a820fc6b55d4646b, type: 3}
+  sfxManaMaxDown: {fileID: 8300000, guid: f1a5f32611c5015439c31ff3e32b9447, type: 3}
+  sfxManaRecover: {fileID: 8300000, guid: f1e613e116adb2443a25d259904bcdc3, type: 3}
+  sfxAttackEffect: {fileID: 8300000, guid: 89aee3e23089df54eae6974d675502fc, type: 3}
+  sfxBlockEffect: {fileID: 8300000, guid: 7b9146f31b2984e4592b85622f6b29e5, type: 3}

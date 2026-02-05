@@ -235,6 +235,9 @@ public class GameManager : NetworkBehaviour
     private void Start()
     {
         runner = FindAnyObjectByType<NetworkRunner>();
+        // ★メインBGM開始（対戦シーンで1回）
+        TryStartMainBgm();
+
 
         if (turnChoicePanel != null) turnChoicePanel.SetActive(false);
 
@@ -245,6 +248,19 @@ public class GameManager : NetworkBehaviour
             returnHomeButton.onClick.RemoveAllListeners();
             returnHomeButton.onClick.AddListener(OnReturnHomeClicked);
         }
+    }
+    private bool _didStartMainBgm = false;
+
+    private void TryStartMainBgm()
+    {
+        if (_didStartMainBgm) return;
+
+        var am = AudioManager.Instance;
+        if (am == null || am.library == null) return;
+        if (am.library.bgmMainGame == null) return;
+
+        am.ChangeBgm(am.library.bgmMainGame, loop: true, volumeScale: 1f);
+        _didStartMainBgm = true;
     }
 
 
@@ -380,7 +396,7 @@ public class GameManager : NetworkBehaviour
             string text = player.Object.HasInputAuthority ?
                 "あなたのターン" : "相手のターン";
 
-            turnInfoText.text = $"Turn {turnNumber}: {text}";
+            turnInfoText.text = $"{text}";
         }
 
         // ✅ 自分のターンだけ UI ON
@@ -606,6 +622,10 @@ public class GameManager : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_SyncRemoveLife(int playerIndex)
     {
+        // ★SFX：ライフ破壊（両者）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(SfxClipId.LifeBreak);
+
         // Host はすでに RemoveLife 済みなので、ここでは何もしない
         if (Object.HasStateAuthority)
             return;
@@ -614,11 +634,13 @@ public class GameManager : NetworkBehaviour
             return;
 
         var pm = players[playerIndex];
-        if (pm != null && pm.lifeManager != null)
-        {
-            pm.lifeManager.RemoveLife();
-        }
+        if (pm == null || pm.lifeManager == null)
+            return;
+
+        // Client側でだけ実際に削除
+        pm.lifeManager.RemoveLife();
     }
+
 
     // ============================
     // ライフ追加（Host → 全員）
@@ -764,9 +786,14 @@ public class GameManager : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_AddProcessingCard(int processId, int cardId)
     {
+        // ★SFX：カード使用（両者）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(SfxClipId.CardUse);
+
         if (ProcessingCardBar.Instance != null)
             ProcessingCardBar.Instance.AddProcessingCard(processId, cardId);
     }
+
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_RemoveProcessingCard(int processId)
@@ -913,6 +940,10 @@ public class GameManager : NetworkBehaviour
         var data = deckManager.GetCardDataById(cardId);
         pm.handManager.AddCardFromData(data);
 
+        // ★SFX：ドロー（両者、1枚ごと）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayCardMoveBurst(1);
+
         // ▼追加：引いたカードは「自分の端末だけ」表示
         if (pm.Object != null && pm.Object.HasInputAuthority)
         {
@@ -946,6 +977,7 @@ public class GameManager : NetworkBehaviour
 
         Debug.Log($"RPC_ApplyDraw: playerIndex={playerIndex} に cardID={cardId} をドローさせました。 Reset={resetMana}");
     }
+
 
 
     // ============================================================
@@ -1170,8 +1202,35 @@ public class GameManager : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_ApplyCharge(int playerIndex)
     {
+        int beforeCur = 0;
+        int beforeMax = 0;
+
+        if (players != null && playerIndex >= 0 && playerIndex < players.Count && players[playerIndex] != null)
+        {
+            beforeCur = players[playerIndex].currentMana;
+            beforeMax = players[playerIndex].maxMana;
+        }
+
         // ★ 実際のマナ計算（Max+1 / Reset）を適用
         ApplyChargeInternal(playerIndex);
+
+        // ★SFX：マナ増加（両者）
+        if (players != null && playerIndex >= 0 && playerIndex < players.Count && players[playerIndex] != null)
+        {
+            int afterCur = players[playerIndex].currentMana;
+            int afterMax = players[playerIndex].maxMana;
+
+            int gainCur = afterCur - beforeCur;
+            if (gainCur < 0) gainCur = 0;
+
+            int gainMax = afterMax - beforeMax;
+            if (gainMax < 0) gainMax = 0;
+
+            int count = (gainCur > 0) ? gainCur : gainMax;
+
+            if (count > 0 && AudioManager.Instance != null)
+                AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, count);
+        }
 
         // ★ 各クライアントで、自分のUIから見た「相手のマナ表示」を更新
         foreach (var pm in players)
@@ -1183,6 +1242,19 @@ public class GameManager : NetworkBehaviour
             }
         }
     }
+
+    // ============================
+    // マナ増加SFX（Host → 全員）
+    // ============================
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PlayCardMoveBurst(int count)
+    {
+        if (count <= 0) return;
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayCardMoveBurst(count);
+    }
+
 
 
 
@@ -1431,23 +1503,35 @@ public class GameManager : NetworkBehaviour
         if (targetPlayer == null) return;
         if (amount <= 0) return;
 
+        int beforeMax = targetPlayer.maxMana;
+
         targetPlayer.IncreaseMaxManaOnly(amount);
 
-        // Networked値が変わったので、全員のUIを補正
-        UpdateAllManaUI();
+        int maxUp = targetPlayer.maxMana - beforeMax;
+        if (maxUp < 0) maxUp = 0;
+
+        // UIは全員側で更新＆音も全員に鳴らす
+        RPC_RefreshManaUIAndSfx(maxUp, 0, 0);
     }
-    // Host 側のみ: 特定プレイヤーの最大マナを減らす（カード効果用）
+
+
     public void EffectManaReduce(PlayerManager targetPlayer, int amount)
     {
         if (!Object.HasStateAuthority) return;
         if (targetPlayer == null) return;
         if (amount <= 0) return;
 
+        int beforeMax = targetPlayer.maxMana;
+
         targetPlayer.DecreaseMaxManaOnly(amount);
 
-        // Networked値が変わったので、全員のUIを補正
-        UpdateAllManaUI();
+        int maxDown = beforeMax - targetPlayer.maxMana;
+        if (maxDown < 0) maxDown = 0;
+
+        RPC_RefreshManaUIAndSfx(0, maxDown, 0);
     }
+
+
     // 効果 ManaReduceSelf 用リクエスト（Client → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_RequestEffectManaReduceSelf(PlayerRef requester, int amount)
@@ -1529,6 +1613,8 @@ public class GameManager : NetworkBehaviour
         if (targetPlayer == null) return;
         if (!isAll && amount <= 0) return;
 
+        int beforeCur = targetPlayer.currentMana;
+
         if (isAll)
         {
             targetPlayer.ResetMana();
@@ -1538,8 +1624,36 @@ public class GameManager : NetworkBehaviour
             targetPlayer.GainMana(amount);
         }
 
-        UpdateAllManaUI();
+        int recover = targetPlayer.currentMana - beforeCur;
+        if (recover < 0) recover = 0;
+
+        RPC_RefreshManaUIAndSfx(0, 0, recover);
     }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_RefreshManaUIAndSfx(int maxUp, int maxDown, int recover)
+    {
+        // 各クライアントでUI更新
+        UpdateAllManaUI();
+
+        var am = AudioManager.Instance;
+        if (am == null) return;
+
+        if (maxUp > 0) am.PlayManaMaxUpBurst(maxUp);
+        if (maxDown > 0) am.PlayManaMaxDownBurst(maxDown);
+        if (recover > 0) am.PlayManaRecoverBurst(recover);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_PlaySharedSfx(int sfxId)
+    {
+        var am = AudioManager.Instance;
+        if (am == null) return;
+
+        am.PlaySfx((SfxClipId)sfxId);
+    }
+
+
 
     // 効果 ManaBoost 用リクエスト（Client → Host）
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -1692,7 +1806,17 @@ public class GameManager : NetworkBehaviour
             return;
         }
 
+        int beforeCur = target.currentMana;
+
         target.currentMana -= cost;
+
+        // ★マナ減少SFX（両者）
+        int dec = beforeCur - target.currentMana;
+        if (dec > 0)
+            RPC_PlayCardMoveBurst(dec);
+
+        UpdateAllManaUI();
+
 
         UpdateAllManaUI();
     }
@@ -1841,6 +1965,10 @@ public class GameManager : NetworkBehaviour
         var pm = players[playerIndex];
         if (pm == null || pm.handManager == null) return;
 
+        // ★SFX：捨て札回収（両者）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, recoverIds.Length);
+
         foreach (int id in recoverIds)
         {
             // まず捨て札から削除（自分のクライアントは既に除外済みでもOK）
@@ -1859,6 +1987,8 @@ public class GameManager : NetworkBehaviour
             CardMovePopupManager.Instance.ShowRecoverCards(recoverIds);
         }
     }
+
+
 
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -1904,6 +2034,10 @@ public class GameManager : NetworkBehaviour
         var targetPM = players[targetIndex];
         if (targetPM == null) return;
 
+        // ★SFX：手札から捨てる（両者）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, cardIds.Length);
+
         // 1) 共有捨て札へ追加（全員で同じ結果）
         if (deckManager != null && discardManager != null)
         {
@@ -1913,8 +2047,6 @@ public class GameManager : NetworkBehaviour
                 if (data != null) discardManager.AddToDiscard(data);
             }
         }
-
-
 
         // ▼追加：捨てたカードは両者に表示（大量になり得るのでグリッド＆同IDは枚数表示でまとめる）
         if (CardMovePopupManager.Instance != null)
@@ -1934,6 +2066,7 @@ public class GameManager : NetworkBehaviour
             targetPM.UpdateHandCountUI(); // 自分画面の即時反映
         }
     }
+
 
     // ============================================================
     //  手札の入れ替え（Host確定）
@@ -2241,6 +2374,21 @@ public class GameManager : NetworkBehaviour
             resultText = "WIN";
         else
             resultText = "LOSE";
+
+        // ★BGM切替＆勝敗SE
+        var am = AudioManager.Instance;
+        if (am != null && am.library != null)
+        {
+            if (am.library.bgmResult != null)
+                am.ChangeBgm(am.library.bgmResult, loop: true, volumeScale: 1f);
+
+            if (resultText == "WIN")
+                am.PlaySfx(SfxClipId.Victory);
+            else if (resultText == "LOSE")
+                am.PlaySfx(SfxClipId.Defeat);
+            // DRAW は無し（必要なら後で追加）
+        }
+
 
         // UI表示（GameOverPanelがあればそっち優先）
         if (gameOverPanel != null)
@@ -2607,6 +2755,10 @@ public class GameManager : NetworkBehaviour
         var victimPM = players[victimIndex];
         if (thiefPM == null || victimPM == null) return;
 
+        // ★SFX：奪う（両者）
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, stolenIds.Length);
+
         // 1) Steal専用UI表示（ローカルだけ文言を変える）
         if (CardMovePopupManager.Instance != null)
         {
@@ -2651,6 +2803,7 @@ public class GameManager : NetworkBehaviour
             thiefPM.NotifyHandChangedForBothSides();
         }
     }
+
 
     public bool IsLifeDefenceSealedForIndex(int idx)
     {
@@ -2749,8 +2902,22 @@ public class GameManager : NetworkBehaviour
 
         if (currentPlayerIndex != _prevPlayerIndex)
         {
+            int oldIndex = _prevPlayerIndex;
+
+            // ★SFX：ターン終了（初回は鳴らさない）
+            if (oldIndex != -1)
+            {
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.PlaySfx(SfxClipId.TurnEnd);
+            }
+
             _prevPlayerIndex = currentPlayerIndex;
             StartTurnInternal();
+
+            // ★SFX：ターン開始
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.PlaySfx(SfxClipId.TurnStart);
         }
     }
+
 }

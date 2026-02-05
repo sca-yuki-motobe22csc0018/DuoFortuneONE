@@ -37,6 +37,11 @@ public class HandManager : MonoBehaviour
     private GameObject hoverCardGO;
     private GameObject draggingCard;
 
+    [Header("Hover SFX")]
+    public float hoverSfxCooldown = 0.08f;   // 連打防止（好みで調整）
+    private GameObject _lastHoveredCard;
+    private float _nextHoverSfxTime = 0f;
+
     public DiscardManager discardManager;
 
     // 手札の持ち主（PlayerManager側からインスペクタで割り当て）
@@ -273,6 +278,13 @@ public class HandManager : MonoBehaviour
 
     void HandleHover()
     {
+        // ★自分の手札だけ hover を有効にする（相手側で反応しないように）
+        if (ownerPlayer == null)
+            ownerPlayer = GetComponentInParent<PlayerManager>();
+
+        if (ownerPlayer != null && ownerPlayer.Object != null && !ownerPlayer.Object.HasInputAuthority)
+            return;
+
         if (Camera.main == null) return;
 
         Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
@@ -292,10 +304,27 @@ public class HandManager : MonoBehaviour
             }
         }
 
-        if (hoverCardGO != null)
+        // ★hoverが変わった瞬間だけ：音を鳴らす＆プレビューを作り直す
+        if (hovered != _lastHoveredCard)
         {
-            Destroy(hoverCardGO);
-            hoverCardGO = null;
+            // 乗った瞬間だけ音（離れた時は鳴らさない）
+            if (hovered != null && Time.unscaledTime >= _nextHoverSfxTime)
+            {
+                _nextHoverSfxTime = Time.unscaledTime + hoverSfxCooldown;
+
+                var am = AudioManager.Instance;
+                if (am != null)
+                    am.PlayUI(UIClipId.HoverHandCard);
+            }
+
+            // hoverが変わったのでプレビューは作り直し
+            if (hoverCardGO != null)
+            {
+                Destroy(hoverCardGO);
+                hoverCardGO = null;
+            }
+
+            _lastHoveredCard = hovered;
         }
 
         for (int i = 0; i < handCards.Count; i++)
@@ -318,22 +347,25 @@ public class HandManager : MonoBehaviour
                 cg.baseSortingOrder = baseSortingOrder + i * cardOrderStep + hoverSortingOffset;
                 cg.SetChildSortingOrders();
 
-                // 拡大プレビュー（必要なければ削除OK）
-                hoverCardGO = Instantiate(card, transform.parent);
-                if (Camera.main != null)
+                // ★拡大プレビュー：hover中は作らない（hover変化時だけ作る）
+                if (hoverCardGO == null)
                 {
-                    Vector3 centerPos = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width / 2, Screen.height / 2, 10f));
-                    centerPos.y = hoverCopyY;
-                    hoverCardGO.transform.position = centerPos;
-                }
-                hoverCardGO.transform.localScale = Vector3.one * hoverCopyScale;
-                hoverCardGO.transform.localRotation = Quaternion.identity;
+                    hoverCardGO = Instantiate(card, transform.parent);
+                    if (Camera.main != null)
+                    {
+                        Vector3 centerPos = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width / 2, Screen.height / 2, 10f));
+                        centerPos.y = hoverCopyY;
+                        hoverCardGO.transform.position = centerPos;
+                    }
+                    hoverCardGO.transform.localScale = Vector3.one * hoverCopyScale;
+                    hoverCardGO.transform.localRotation = Quaternion.identity;
 
-                CardGenerator copyCG = hoverCardGO.GetComponent<CardGenerator>();
-                if (copyCG != null)
-                {
-                    copyCG.baseSortingOrder += hoverSortingOffset * 2;
-                    copyCG.SetChildSortingOrders();
+                    CardGenerator copyCG = hoverCardGO.GetComponent<CardGenerator>();
+                    if (copyCG != null)
+                    {
+                        copyCG.baseSortingOrder += hoverSortingOffset * 2;
+                        copyCG.SetChildSortingOrders();
+                    }
                 }
             }
             else
@@ -344,6 +376,7 @@ public class HandManager : MonoBehaviour
             }
         }
     }
+
 
     // ドラッグ用フック（必要に応じて使用）
     public void SetDraggingCard(GameObject card) => draggingCard = card;

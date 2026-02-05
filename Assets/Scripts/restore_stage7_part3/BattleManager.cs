@@ -152,6 +152,13 @@ public class BattleManager : MonoBehaviour
         // defender  players ̉ԖڂoĂiCtpj
         int defenderIndex = gm.players.IndexOf(defender);
 
+        // ★追加：Attack効果発動音（カードタイプではなく、効果が走るタイミング）
+        if (gm != null)
+        {
+            gm.RPC_PlaySharedSfx((int)SfxClipId.AttackEffect);
+        }
+
+
         // @ U錾
         if (EffectProcessWindow.Instance != null)
             yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto($"UIy{attackCard.name}z", 1.0f, false));
@@ -407,8 +414,17 @@ public class BattleManager : MonoBehaviour
             switch (t)
             {
                 case "Block":
+                    if (!negated)
+                    {
+                        var gm2 = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm2 != null && gm2.Object != null && gm2.Object.HasStateAuthority)
+                        {
+                            gm2.RPC_PlaySharedSfx((int)SfxClipId.BlockEffect);
+                        }
+                    }
                     negated = true;
                     break;
+
 
                 case "LifeAdd":
                     if (int.TryParse(v, out int lifePlus) && defender != null && defender.lifeManager != null)
@@ -443,10 +459,19 @@ public class BattleManager : MonoBehaviour
                 case "ManaRecover":
                     if (int.TryParse(v, out int manaRec) && defender != null)
                     {
-                        defender.currentMana = Mathf.Min(defender.maxMana, defender.currentMana + manaRec);
-                        defender.UpdateEnergyUI();
+                        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+                        if (gm != null && gm.Object != null && gm.Object.HasStateAuthority)
+                        {
+                            gm.EffectManaRecover(defender, manaRec, false); // ★回復音も含めて同期
+                        }
+                        else
+                        {
+                            defender.currentMana = Mathf.Min(defender.maxMana, defender.currentMana + manaRec);
+                            defender.UpdateEnergyUI();
+                        }
                     }
                     break;
+
 
                 case "Draw":
                     if (int.TryParse(v, out int drawN))

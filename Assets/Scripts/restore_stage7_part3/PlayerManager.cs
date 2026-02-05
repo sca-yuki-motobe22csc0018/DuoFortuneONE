@@ -15,9 +15,25 @@ public class PlayerManager : NetworkBehaviour
     // ★ 追加：手札枚数（Host確定で保持する）
     [Networked] public int handCount { get; set; }
 
-    [Header("マナUI")]
-    public TMP_Text energyText;          // 自分のマナ
-    public TMP_Text opponentEnergyText;  // 相手のマナ
+
+    // ★追加：分離したテキスト
+    public TMP_Text currentManaText;           // 自分：現在
+    public TMP_Text maxManaText;               // 自分：最大
+    public TMP_Text opponentCurrentManaText;   // 相手：現在
+    public TMP_Text opponentMaxManaText;       // 相手：最大
+
+    [Header("マナアイコンUI（最大/現在）")]
+    public GameObject[] myMaxManaObjects;          // 自分：最大（10個）
+    public GameObject[] myCurrentManaObjects;      // 自分：現在（10個）
+    public GameObject[] opponentMaxManaObjects;    // 相手：最大（10個）
+    public GameObject[] opponentCurrentManaObjects;// 相手：現在（10個）
+
+    // ★追加：Renderで毎フレーム呼ばれるので、無駄なSetActiveを減らす
+    private int _lastUIMaxMana = -1;
+    private int _lastUICurrentMana = -1;
+    private int _lastOppUIMaxMana = -1;
+    private int _lastOppUICurrentMana = -1;
+
 
     [Header("ライフUI")]
     public TMP_Text myLifeCountText;         // 自分のライフ枚数
@@ -112,8 +128,16 @@ public class PlayerManager : NetworkBehaviour
         }
 
         // 自分のCanvasだけ ON
-        if (energyText != null)
-            energyText.transform.root.gameObject.SetActive(Object.HasInputAuthority);
+        // 自分のCanvasだけ ON（energyText を外しても動くように保険）
+        GameObject rootObj = null;
+
+        if (currentManaText != null) rootObj = currentManaText.transform.root.gameObject;
+        else if (maxManaText != null) rootObj = maxManaText.transform.root.gameObject;
+        else if (opponentCurrentManaText != null) rootObj = opponentCurrentManaText.transform.root.gameObject;
+        else if (opponentMaxManaText != null) rootObj = opponentMaxManaText.transform.root.gameObject;
+
+        if (rootObj != null)
+            rootObj.SetActive(Object.HasInputAuthority);
 
         // ★追加：念のため初期は閉じる
         if (costSealDeclareUI != null)
@@ -257,15 +281,83 @@ public class PlayerManager : NetworkBehaviour
 
     public void UpdateEnergyUI()
     {
-        if (energyText != null)
-            energyText.text = $"{currentMana}/{maxMana}";
+        // ★自分画面のUIだけ更新
+        if (!Object.HasInputAuthority)
+            return;
+
+
+        // ★新UI：Textを分離
+        if (currentManaText != null)
+            currentManaText.text = currentMana.ToString();
+
+        if (maxManaText != null)
+            maxManaText.text = maxMana.ToString();
+
+        // ★アイコン更新（値が変わった時だけ）
+        if (_lastUIMaxMana == maxMana && _lastUICurrentMana == currentMana)
+            return;
+
+        _lastUIMaxMana = maxMana;
+        _lastUICurrentMana = currentMana;
+
+        UpdateManaIconObjects(myMaxManaObjects, myCurrentManaObjects, maxMana, currentMana);
     }
 
     public void UpdateOpponentUI()
     {
-        if (opponent != null && opponentEnergyText != null)
-            opponentEnergyText.text = $"{opponent.currentMana}/{opponent.maxMana}";
+        // ★自分画面のUIだけ更新（相手オブジェクト側からUIを触らない）
+        if (!Object.HasInputAuthority)
+            return;
+
+        if (opponent == null)
+            return;
+
+
+        // ★新UI：Textを分離
+        if (opponentCurrentManaText != null)
+            opponentCurrentManaText.text = opponent.currentMana.ToString();
+
+        if (opponentMaxManaText != null)
+            opponentMaxManaText.text = opponent.maxMana.ToString();
+
+        // ★アイコン更新（値が変わった時だけ）
+        int oppMax = opponent.maxMana;
+        int oppCur = opponent.currentMana;
+
+        if (_lastOppUIMaxMana == oppMax && _lastOppUICurrentMana == oppCur)
+            return;
+
+        _lastOppUIMaxMana = oppMax;
+        _lastOppUICurrentMana = oppCur;
+
+        UpdateManaIconObjects(opponentMaxManaObjects, opponentCurrentManaObjects, oppMax, oppCur);
     }
+
+    // ★追加：最大/現在のアイコンを current/max に合わせて表示・非表示
+    private void UpdateManaIconObjects(GameObject[] maxObjs, GameObject[] currentObjs, int maxVal, int currentVal)
+    {
+        int max = Mathf.Clamp(maxVal, 0, maxManaLimit);
+        int cur = Mathf.Clamp(currentVal, 0, max);
+
+        if (maxObjs != null)
+        {
+            for (int i = 0; i < maxObjs.Length; i++)
+            {
+                if (maxObjs[i] != null)
+                    maxObjs[i].SetActive(i < max);
+            }
+        }
+
+        if (currentObjs != null)
+        {
+            for (int i = 0; i < currentObjs.Length; i++)
+            {
+                if (currentObjs[i] != null)
+                    currentObjs[i].SetActive(i < cur);
+            }
+        }
+    }
+
 
     // HandManager から呼ばれる「手札が変わったよ」通知
     public void NotifyHandChangedForBothSides()
