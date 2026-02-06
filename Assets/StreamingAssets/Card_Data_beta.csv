@@ -68,8 +68,8 @@ Attackを１回する。",2003,SelectDiscardSelf,2,CounterAttack,1,,,,,,,,,,,,,,
 エネルギーの最大値＋１。
 エネルギーを２回復。",2008,Block,1,ManaBoost,1,ManaRecover,2,,,,,,,,,,,,,,
 2009,Resurrect Shield・β,リザレクトシールド・ベータ,B,R,3,"Blockする。
-相手の手札をランダムに１枚捨てさせる。
-エネルギーを２回復。",2009,Block,1,RandomDiscardOpponent,1,ManaRecover,2,,,,,,,,,,,,,,
+相手の手札をランダムに１枚奪う。
+エネルギーを２回復。",2009,Block,1,StealRandomOpponent,1,ManaRecover,2,,,,,,,,,,,,,,
 2010,Resurrect Shield・γ,リザレクトシールド・ガンマ,B,R,3,"Blockする。
 ２枚ドロー。
 エネルギーを２回復。",2010,Block,1,Draw,2,ManaRecover,2,,,,,,,,,,,,,,
@@ -134,7 +134,7 @@ O3=相手の手札をランダムに１枚捨てさせる。=>RandomDiscardOppon
 ◎３枚ドローし、手札を２枚捨てる。
 ◎相手の手札をランダムに１枚奪う。
 ◎捨て札から１枚加える。
-◎エネルギーを２回復。",3021,Defence,1,ManaReduceIfMyTurn,2,ChoiceMulti,"P=4;M=2;
+◎エネルギーを２回復。",3021,Defence,1,ManaReduceIfMyTurn,2,ChoiceMulti,"P=3;M=2;
 O1=３枚ドローし、手札を２枚捨てる。=>Draw:3|SelectDiscardSelf:2;
 O2=相手の手札をランダムに１枚奪う。=>StealRandomOpponent:1;
 O3=捨て札から１枚加える。=>RecoverDiscard:1;

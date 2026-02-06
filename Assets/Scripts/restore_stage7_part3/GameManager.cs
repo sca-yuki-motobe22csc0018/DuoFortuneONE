@@ -56,6 +56,9 @@ public class GameManager : NetworkBehaviour
     private const string EX_CARD_NAME = "EX_001";
     private const int EX_WIN_COUNT = 5;
 
+    private const string REASON_KEY_RETIRE = "__RETIRE__";
+
+
     [Header("Initial Settings")]
     public int initialHandCount = 5;
     public int initialLifeCount = 3;
@@ -245,8 +248,10 @@ public class GameManager : NetworkBehaviour
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (returnHomeButton != null)
         {
-            returnHomeButton.onClick.RemoveAllListeners();
-            returnHomeButton.onClick.AddListener(OnReturnHomeClicked);
+            // ★GameManagerがDespawnしてもボタンが死なないように、ローカルUIで処理する
+            var local = returnHomeButton.GetComponent<ReturnHomeLocalUI>();
+            if (local == null) local = returnHomeButton.gameObject.AddComponent<ReturnHomeLocalUI>();
+            local.Setup(returnHomeButton, homeSceneName);
         }
     }
     private bool _didStartMainBgm = false;
@@ -538,7 +543,7 @@ public class GameManager : NetworkBehaviour
         var p1 = players[1];
 
         // ---------- 手札 ----------
-        if (p0.handManager != null)
+        if (p0.handManager != null && p0.Object != null && p0.Object.HasInputAuthority)
         {
             foreach (var id in p0Hand)
             {
@@ -547,7 +552,7 @@ public class GameManager : NetworkBehaviour
             }
         }
 
-        if (p1.handManager != null)
+        if (p1.handManager != null && p1.Object != null && p1.Object.HasInputAuthority)
         {
             foreach (var id in p1Hand)
             {
@@ -595,15 +600,6 @@ public class GameManager : NetworkBehaviour
                 pm.NotifyHandChangedForBothSides();
                 pm.UpdateLifeUI();   // ★ 追加
             }
-        }
-        // ★追加：Hostが handCount(Networked) を確定（これをしないと opponent.handCount が 0 のままになる）
-        if (Object.HasStateAuthority)
-        {
-            if (players[0] != null && players[0].handManager != null)
-                players[0].handCount = players[0].handManager.CardCount;
-
-            if (players[1] != null && players[1].handManager != null)
-                players[1].handCount = players[1].handManager.CardCount;
         }
         if (Object.HasStateAuthority)
         {
@@ -937,8 +933,13 @@ public class GameManager : NetworkBehaviour
         }
 
         // IDからカードデータを復元して手札に追加
-        var data = deckManager.GetCardDataById(cardId);
-        pm.handManager.AddCardFromData(data);
+        // IDからカードデータを復元して手札に追加（本人の端末だけ）
+        if (pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null)
+        {
+            var data = deckManager.GetCardDataById(cardId);
+            pm.handManager.AddCardFromData(data);
+        }
+
 
         // ★SFX：ドロー（両者、1枚ごと）
         if (AudioManager.Instance != null)
@@ -961,12 +962,6 @@ public class GameManager : NetworkBehaviour
 
             if (pm != null) pm.handCount = list.Count;
             TryCheckEx001Win(playerIndex);
-        }
-
-        // ★追加：Hostが handCount(Networked) を確定（ドローで増えた分を即同期）
-        if (Object.HasStateAuthority)
-        {
-            pm.handCount = pm.handManager.CardCount;
         }
 
         // ★ 「このドローはターン開始時の選択」ならマナを回復
@@ -1133,7 +1128,7 @@ public class GameManager : NetworkBehaviour
 
         if (list.Count == 0) return "";
         string s = string.Join("，", list.Distinct().OrderBy(x => x));
-        return $"宣言：{s}";
+        return $"使用不可：{s}";
     }
 
 
@@ -1977,8 +1972,12 @@ public class GameManager : NetworkBehaviour
             var data = deckManager.GetCardDataById(id);
             if (data == null) continue;
 
-            // 手札へ追加（各クライアントで同じPlayerManagerのHandManagerに追加）
-            pm.handManager.AddCardFromData(data);
+            // 手札へ追加（本人の端末だけ）
+            if (pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null)
+            {
+                pm.handManager.AddCardFromData(data);
+            }
+
         }
 
         // ▼追加：回収したカードは両者に表示
@@ -2388,7 +2387,16 @@ public class GameManager : NetworkBehaviour
                 am.PlaySfx(SfxClipId.Defeat);
             // DRAW は無し（必要なら後で追加）
         }
+        string finalReason = reason;
 
+        // ★リタイア理由だけは勝者/敗者で文言を変える
+        if (reason == REASON_KEY_RETIRE)
+        {
+            if (winnerIndex >= 0 && myIndex >= 0 && myIndex == winnerIndex)
+                finalReason = "相手がリタイアした";
+            else
+                finalReason = "リタイアした";
+        }
 
         // UI表示（GameOverPanelがあればそっち優先）
         if (gameOverPanel != null)
@@ -2399,14 +2407,15 @@ public class GameManager : NetworkBehaviour
                 gameOverResultText.text = resultText;
 
             if (gameOverReasonText != null)
-                gameOverReasonText.text = reason;
+                gameOverReasonText.text = finalReason;
+
         }
         else
         {
             // フォールバック（今まで通りEffectWindow）
             string msg = (winnerIndex < 0)
-                ? $"引き分け：{reason}"
-                : $"勝利：P{winnerIndex + 1}（{reason}）";
+                ? $"引き分け：{finalReason}"
+                : $"勝利：P{winnerIndex + 1}（{finalReason}）";
 
             if (effectWindow != null)
                 StartCoroutine(effectWindow.ShowProcessAuto(msg, 2.0f, false));
@@ -2887,6 +2896,33 @@ public class GameManager : NetworkBehaviour
         localPm.UpdateLifeUI();
     }
 
+    public void RequestRetire()
+    {
+        if (_isGameOver) return;
+
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+
+        // 通信が死んでる/無いなら、ここでは何もしない（UI側でローカル敗北表示に落とす）
+        if (r == null || !r.IsRunning) return;
+
+        RPC_RequestRetire(r.LocalPlayer);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestRetire(PlayerRef requester)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (_isGameOver) return;
+
+        int loserIndex = FindPlayerIndexByRef(requester);
+
+        int winnerIndex = 0;
+        if (loserIndex == 0) winnerIndex = 1;
+        else if (loserIndex == 1) winnerIndex = 0;
+
+        EndGameInternal(winnerIndex, REASON_KEY_RETIRE);
+    }
 
 
 

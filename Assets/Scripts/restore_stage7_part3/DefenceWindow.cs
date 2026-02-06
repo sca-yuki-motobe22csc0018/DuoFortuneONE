@@ -1,4 +1,4 @@
-using Fusion;
+ï»¿using Fusion;
 using System.Collections;
 using TMPro;
 using UnityEngine;
@@ -10,22 +10,22 @@ public class DefenceWindow : MonoBehaviour
 
     [Header("UI Components")]
     public TMP_Text titleText;
-    public Transform cardParent;       // UICard‚ğ•\¦‚·‚éei‹ó‚ÌRectTransformj
+    public Transform cardParent;       // UICardã‚’è¡¨ç¤ºã™ã‚‹è¦ªï¼ˆç©ºã®RectTransformï¼‰
     public Button useButton;
     public Button okButton;
 
     [Header("Prefabs")]
-    public GameObject uiCardPrefab;    // Assets/Prefab/UICard.prefab ‚ğInspector‚ÅŠ„‚è“–‚Ä
+    public GameObject uiCardPrefab;    // Assets/Prefab/UICard.prefab ã‚’Inspectorã§å‰²ã‚Šå½“ã¦
 
     [Header("Card Display Settings")]
-    public Vector3 cardScale = new Vector3(0.8f, 0.8f, 0.8f);  // ¶¬ƒJ[ƒh‚ÌƒXƒP[ƒ‹
+    public Vector3 cardScale = new Vector3(0.8f, 0.8f, 0.8f);  // ç”Ÿæˆã‚«ãƒ¼ãƒ‰ã®ã‚¹ã‚±ãƒ¼ãƒ«
 
     private bool isWaiting = false;
     private bool useDefence = false;
     private CardGenerator.CardData currentCardData;
     private PlayerManager currentPlayer;
 
-    private GameObject currentCardObj; // ¶¬‚µ‚½UICard
+    private GameObject currentCardObj; // ç”Ÿæˆã—ãŸUICard
 
     void Awake()
     {
@@ -42,7 +42,7 @@ public class DefenceWindow : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒ‰ƒCƒt”j‰ó‚ÌDEFENCE”­“®Šm”FƒEƒCƒ“ƒhƒE
+    /// ãƒ©ã‚¤ãƒ•ç ´å£Šæ™‚ã®DEFENCEç™ºå‹•ç¢ºèªã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦
     /// </summary>
     public IEnumerator ShowDefenceChoice(PlayerManager player, CardGenerator.CardData cardData)
     {
@@ -54,26 +54,26 @@ public class DefenceWindow : MonoBehaviour
         useDefence = false;
 
         gameObject.SetActive(true);
-        if (titleText != null) titleText.text = "ƒ‰ƒCƒt‚ª”j‰ó‚³‚ê‚Ü‚µ‚½I";
+        if (titleText != null) titleText.text = "ãƒ©ã‚¤ãƒ•ãŒç ´å£Šã•ã‚Œã¾ã—ãŸï¼";
 
-        // Šù‚É•\¦’†‚ÌƒJ[ƒh‚ğ”jŠü
+        // æ—¢ã«è¡¨ç¤ºä¸­ã®ã‚«ãƒ¼ãƒ‰ã‚’ç ´æ£„
         if (currentCardObj != null) Destroy(currentCardObj);
 
-        // --- UICard ‚ğ¶¬‚µ‚Ä“à—e‚ğ”½‰f ---
+        // --- UICard ã‚’ç”Ÿæˆã—ã¦å†…å®¹ã‚’åæ˜  ---
         if (uiCardPrefab != null && cardParent != null)
         {
             currentCardObj = Instantiate(uiCardPrefab, cardParent);
-            // š ƒTƒCƒY’²®iInspector‚Åİ’è‚µ‚½”{—¦‚ğ”½‰fj
+            // â˜… ã‚µã‚¤ã‚ºèª¿æ•´ï¼ˆInspectorã§è¨­å®šã—ãŸå€ç‡ã‚’åæ˜ ï¼‰
             currentCardObj.transform.localScale = cardScale;
 
-            // CardUI ‚É“à—e‚ğ”½‰fiDiscardManager‚Í•s—v‚È‚Ì‚ÅnullAƒ][ƒ“‚Í‚Ç‚¿‚ç‚Å‚àOKj
+            // CardUI ã«å†…å®¹ã‚’åæ˜ ï¼ˆDiscardManagerã¯ä¸è¦ãªã®ã§nullã€ã‚¾ãƒ¼ãƒ³ã¯ã©ã¡ã‚‰ã§ã‚‚OKï¼‰
             var ui = currentCardObj.GetComponent<CardUI>();
             if (ui != null)
             {
                 ui.SetCard(cardData, 1, null, CardUISource.RecoverZone);
             }
 
-            // ƒNƒŠƒbƒN‚ÅÚ×‚ğŠJ‚¯‚é‚æ‚¤‚É CardUIDetail ‚É‚à‰Šú‰»‚ğ“n‚·
+            // ã‚¯ãƒªãƒƒã‚¯ã§è©³ç´°ã‚’é–‹ã‘ã‚‹ã‚ˆã†ã« CardUIDetail ã«ã‚‚åˆæœŸåŒ–ã‚’æ¸¡ã™
             var detail = currentCardObj.GetComponent<CardUIDetail>();
             if (detail != null)
             {
@@ -82,7 +82,7 @@ public class DefenceWindow : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("DefenceWindow: uiCardPrefab ‚© cardParent ‚ª–¢İ’è‚Å‚·B");
+            Debug.LogWarning("DefenceWindow: uiCardPrefab ã‹ cardParent ãŒæœªè¨­å®šã§ã™ã€‚");
         }
 
         bool isSealedCost = false;
@@ -92,33 +92,32 @@ public class DefenceWindow : MonoBehaviour
             isSealedCost = true;
         }
 
-        if (useButton != null) useButton.interactable = (cardData.type == "D" && !isSealedCost);
+        // âœ… DEFENCE ã‹ã¤ã€Œã‚³ã‚¹ãƒˆå°å°ã•ã‚Œã¦ã„ãªã„ã€ã‹ã¤ã€Œãƒ©ã‚¤ãƒ•DEFENCEå°å°ã•ã‚Œã¦ã„ãªã„ã€æ™‚ã ã‘ä½¿ç”¨å¯èƒ½
+        bool canUse = (cardData.type == "D") && !isSealedCost;
+
+        if (gm != null && gm.IsLifeDefenceSealed(currentPlayer))
+        {
+            canUse = false;
+        }
 
         if (useButton != null)
         {
-            // DEFENCE ‚©‚Â ••ˆó‚³‚ê‚Ä‚¢‚È‚¢‚¾‚¯g—p‰Â”\
-            bool canUse = (cardData.type == "D");
-
-            if (gm != null && gm.IsLifeDefenceSealed(currentPlayer))
-            {
-                canUse = false;
-            }
-
             useButton.interactable = canUse;
         }
 
 
-        // --- ƒvƒŒƒCƒ„[“ü—Í‘Ò‚¿ ---
+
+        // --- ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼å…¥åŠ›å¾…ã¡ ---
         while (isWaiting)
             yield return null;
 
-        // --- ƒvƒŒƒCƒ„[‚Ì‘I‘ğŒ‹‰Ê ---
+        // --- ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®é¸æŠçµæœ ---
         if (useDefence)
         {
-            Debug.Log("DEFENCE”­“®: " + cardData.name);
+            Debug.Log("DEFENCEç™ºå‹•: " + cardData.name);
             yield return StartCoroutine(UseDefenceCard());
 
-            // DEFENCEg—p ¨ Ì‚ÄD‚Ö‘—‚é
+            // DEFENCEä½¿ç”¨ â†’ æ¨ã¦æœ­ã¸é€ã‚‹
             var discard = GameManager.Instance.discardManager;
             if (discard != null)
             {
@@ -132,33 +131,33 @@ public class DefenceWindow : MonoBehaviour
                     var disCard = FindAnyObjectByType<DiscardManager>();
                     if (disCard != null) discard.AddToDiscard(cardData);
                 }
-                Debug.Log($"DEFENCEƒJ[ƒh {cardData.name} ‚ğÌ‚ÄDƒ][ƒ“‚Ö‘—M");
+                Debug.Log($"DEFENCEã‚«ãƒ¼ãƒ‰ {cardData.name} ã‚’æ¨ã¦æœ­ã‚¾ãƒ¼ãƒ³ã¸é€ä¿¡");
             }
         }
         else
         {
-            Debug.Log("DEFENCE‚ğ”­“®‚µ‚Ü‚¹‚ñ‚Å‚µ‚½B");
+            Debug.Log("DEFENCEã‚’ç™ºå‹•ã—ã¾ã›ã‚“ã§ã—ãŸã€‚");
 
-            // g‚í‚È‚©‚Á‚½ê‡ ¨ HostŒo—R‚ÅèD‚É‰Á‚¦‚éiEX”»’è‚à‚±‚±‚ÅŠmÀ‚É‚Å‚«‚éj
+            // ä½¿ã‚ãªã‹ã£ãŸå ´åˆ â†’ HostçµŒç”±ã§æ‰‹æœ­ã«åŠ ãˆã‚‹ï¼ˆEXåˆ¤å®šã‚‚ã“ã“ã§ç¢ºå®Ÿã«ã§ãã‚‹ï¼‰
             var r = FindAnyObjectByType<NetworkRunner>();
 
             if (gm != null && r != null)
             {
                 gm.RPC_RequestAddHandFromLife(r.LocalPlayer, cardData.id);
-                Debug.Log($"”j‰ó‚³‚ê‚½ƒJ[ƒh {cardData.name} ‚ğèD‚É‰Á‚¦‚é—v‹‚ğ‘—M‚µ‚Ü‚µ‚½");
+                Debug.Log($"ç ´å£Šã•ã‚ŒãŸã‚«ãƒ¼ãƒ‰ {cardData.name} ã‚’æ‰‹æœ­ã«åŠ ãˆã‚‹è¦æ±‚ã‚’é€ä¿¡ã—ã¾ã—ãŸ");
             }
             else
             {
-                // ƒtƒH[ƒ‹ƒoƒbƒNiƒ[ƒJƒ‹‚Ì‚İj
+                // ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ï¼ˆãƒ­ãƒ¼ã‚«ãƒ«ã®ã¿ï¼‰
                 if (currentPlayer != null && currentPlayer.handManager != null)
                 {
                     currentPlayer.handManager.AddCardFromData(cardData);
-                    Debug.Log($"”j‰ó‚³‚ê‚½ƒJ[ƒh {cardData.name} ‚ğèD‚É‰Á‚¦‚Ü‚µ‚½iƒ[ƒJƒ‹j");
+                    Debug.Log($"ç ´å£Šã•ã‚ŒãŸã‚«ãƒ¼ãƒ‰ {cardData.name} ã‚’æ‰‹æœ­ã«åŠ ãˆã¾ã—ãŸï¼ˆãƒ­ãƒ¼ã‚«ãƒ«ï¼‰");
                 }
             }
         }
 
-        // I—¹ˆ—
+        // çµ‚äº†å‡¦ç†
         if (currentCardObj != null)
             Destroy(currentCardObj);
 
@@ -167,12 +166,31 @@ public class DefenceWindow : MonoBehaviour
 
     private void OnUseClicked()
     {
+        // âœ… å¿µã®ãŸã‚ï¼šãƒœã‚¿ãƒ³ãŒæŠ¼ã›ã¦ã—ã¾ã£ãŸäº‹æ•…ã§ã‚‚ã“ã“ã§æ­¢ã‚ã‚‹
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
+
+        if (currentCardData != null)
+        {
+            if (gm != null && gm.IsCostSealed(currentCardData.cost))
+            {
+                Debug.Log($"DefenceWindow: ã‚³ã‚¹ãƒˆ {currentCardData.cost} ã¯å°å°ä¸­ã®ãŸã‚ä½¿ç”¨ä¸å¯");
+                return;
+            }
+        }
+
+        if (gm != null && currentPlayer != null && gm.IsLifeDefenceSealed(currentPlayer))
+        {
+            Debug.Log("DefenceWindow: ãƒ©ã‚¤ãƒ•DEFENCEå°å°ä¸­ã®ãŸã‚ä½¿ç”¨ä¸å¯");
+            return;
+        }
+
         useDefence = true;
         isWaiting = false;
 
-        // š C³: gameObject‚ğ”ñƒAƒNƒeƒBƒu‚É‚¹‚¸ACanvasGroup‚Å“§–¾‚É‚µ‚Ä•Â‚¶‚é
+        // â˜… ä¿®æ­£: gameObjectã‚’éã‚¢ã‚¯ãƒ†ã‚£ãƒ–ã«ã›ãšã€CanvasGroupã§é€æ˜ã«ã—ã¦é–‰ã˜ã‚‹
         HideWindowVisual();
     }
+
 
     private void HideWindowVisual()
     {
@@ -181,7 +199,7 @@ public class DefenceWindow : MonoBehaviour
         {
             cg = gameObject.AddComponent<CanvasGroup>();
         }
-        cg.alpha = 0;        // Š®‘S‚É“§–¾
+        cg.alpha = 0;        // å®Œå…¨ã«é€æ˜
         cg.interactable = false;
         cg.blocksRaycasts = false;
     }
@@ -193,7 +211,7 @@ public class DefenceWindow : MonoBehaviour
     }
 
     /// <summary>
-    /// DEFENCEƒJ[ƒh‚ÌŒø‰Ê‚ğÀÛ‚ÉÀs
+    /// DEFENCEã‚«ãƒ¼ãƒ‰ã®åŠ¹æœã‚’å®Ÿéš›ã«å®Ÿè¡Œ
     /// </summary>
     private IEnumerator UseDefenceCard()
     {
@@ -203,15 +221,15 @@ public class DefenceWindow : MonoBehaviour
         var cg = tempCard.AddComponent<CardGenerator>();
         cg.player = currentPlayer;
         cg.ApplyCardData(currentCardData);
-        cg.skipAutoDiscard = true; // š’Ç‰ÁFTempDefenceCard‚ªŸè‚ÉÌ‚ÄD‚Ö‘—‚ç‚È‚¢‚æ‚¤‚É‚·‚é
-        cg.isDefenceWindowUse = true; // š DEFENCEƒEƒCƒ“ƒhƒEŒo—Rƒtƒ‰ƒOièD‚©‚çg‚¤‚Í”­“®‚µ‚È‚¢j
+        cg.skipAutoDiscard = true; // â˜…è¿½åŠ ï¼šTempDefenceCardãŒå‹æ‰‹ã«æ¨ã¦æœ­ã¸é€ã‚‰ãªã„ã‚ˆã†ã«ã™ã‚‹
+        cg.isDefenceWindowUse = true; // â˜… DEFENCEã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦çµŒç”±ãƒ•ãƒ©ã‚°ï¼ˆæ‰‹æœ­ã‹ã‚‰ä½¿ã†æ™‚ã¯ç™ºå‹•ã—ãªã„ï¼‰
 
 
         yield return cg.StartCoroutine("EffectSequenceCoroutine");
 
         Destroy(tempCard);
 
-        // š ’Ç‰Á: ˆ—‚ªI‚í‚Á‚½‚çUI‚ğ•œŒ³
+        // â˜… è¿½åŠ : å‡¦ç†ãŒçµ‚ã‚ã£ãŸã‚‰UIã‚’å¾©å…ƒ
         RestoreWindowVisual();
     }
 

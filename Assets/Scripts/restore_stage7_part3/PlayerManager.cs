@@ -130,6 +130,18 @@ public class PlayerManager : NetworkBehaviour
         // 自分のCanvasだけ ON
         // 自分のCanvasだけ ON（energyText を外しても動くように保険）
         GameObject rootObj = null;
+        // ★追加：相手側(PlayerManager)の手札実体は保持しない（表示は handCount + 裏面のみ）
+        // 残骸があると Host側の CardCount が膨らみ、相手手札裏面が暴走する原因になる
+        if (!Object.HasInputAuthority && handManager != null)
+        {
+            var cgs = handManager.GetComponentsInChildren<CardGenerator>(true);
+            foreach (var cg in cgs)
+            {
+                if (cg != null)
+                    Destroy(cg.gameObject);
+            }
+            handManager.handCards.Clear();
+        }
 
         if (currentManaText != null) rootObj = currentManaText.transform.root.gameObject;
         else if (maxManaText != null) rootObj = maxManaText.transform.root.gameObject;
@@ -260,12 +272,17 @@ public class PlayerManager : NetworkBehaviour
     {
         int c = (handManager != null) ? handManager.CardCount : 0;
 
+        // Host（StateAuthority）は「自分（InputAuthorityを持つ側）」の分だけ確定する
+        // 相手分は GameManager 側の hostHandIds リストで確定する想定
         // Host（StateAuthority）は自分で確定できる（InputAuthority不要）
         if (Object.HasStateAuthority)
         {
-            handCount = c;
+            if (Object.HasInputAuthority)
+                handCount = c;
+
             return;
         }
+
 
         // Client は InputAuthority を持っている時だけ Host に報告
         if (Object.HasInputAuthority)
@@ -273,6 +290,7 @@ public class PlayerManager : NetworkBehaviour
             RPC_ReportHandCount(c);
         }
     }
+
 
 
     // ================================
@@ -548,6 +566,34 @@ public class PlayerManager : NetworkBehaviour
     {
         if (opponentHandBackRoot == null || opponentBackCardPrefab == null)
             return;
+
+        // 念のため：リストに null が混ざっていたら除去
+        for (int i = opponentHandBackCards.Count - 1; i >= 0; i--)
+        {
+            if (opponentHandBackCards[i] == null)
+                opponentHandBackCards.RemoveAt(i);
+        }
+
+        // 念のため：Root 直下に「リスト外」の裏面カードが増殖してたら掃除
+        for (int i = opponentHandBackRoot.childCount - 1; i >= 0; i--)
+        {
+            var child = opponentHandBackRoot.GetChild(i);
+            if (child == null) continue;
+
+            var go = child.gameObject;
+            if (!opponentHandBackCards.Contains(go))
+            {
+                Destroy(go);
+            }
+        }
+
+        // 安全策：異常な枚数で固まるのを防ぐ（必要なら上限は調整）
+        int safeCount = Mathf.Clamp(count, 0, 60);
+        if (safeCount != count)
+        {
+            Debug.LogWarning($"UpdateOpponentBackCards: 異常な count={count} を {safeCount} にクランプしました。");
+            count = safeCount;
+        }
 
         // 足りないぶん追加
         int current = opponentHandBackCards.Count;
