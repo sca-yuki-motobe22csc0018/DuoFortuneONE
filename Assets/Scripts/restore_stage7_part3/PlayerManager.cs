@@ -677,6 +677,102 @@ public class PlayerManager : NetworkBehaviour
         UpdateOpponentUI();
     }
 
+    public System.Collections.IEnumerator Co_RevealOpponentHandAsEx(string exImageName, int revealCount, float flipDuration, float interval)
+    {
+        if (opponentHandBackRoot == null) yield break;
+
+        var sprite = LoadEx001SpriteForReveal(exImageName);
+        if (sprite == null)
+        {
+            Debug.LogWarning($"RevealOpponentHandAsEx: sprite not found cardPNG/cardxxxx  exImageName={exImageName}");
+            yield break;
+        }
+
+        int total = opponentHandBackCards.Count;
+        int n = Mathf.Min(revealCount, total);
+        if (n <= 0) yield break;
+
+        // ★ランダム位置＆ランダム順にする
+        List<int> idxs = new List<int>(total);
+        for (int i = 0; i < total; i++) idxs.Add(i);
+
+        // Fisher–Yates shuffle
+        for (int i = idxs.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            int tmp = idxs[i];
+            idxs[i] = idxs[j];
+            idxs[j] = tmp;
+        }
+
+        for (int k = 0; k < n; k++)
+        {
+            int i = idxs[k];
+            var go = opponentHandBackCards[i];
+            if (go == null) continue;
+
+            yield return StartCoroutine(Co_FlipCardBackToSprite(go.transform, sprite, flipDuration));
+
+            if (interval > 0f)
+                yield return new WaitForSecondsRealtime(interval);
+        }
+    }
+    private Sprite LoadEx001SpriteForReveal(string exImageName)
+    {
+        string spriteName = exImageName;
+        if (!spriteName.StartsWith("card"))
+            spriteName = spriteName + "card";
+
+        var sp = Resources.Load<Sprite>("cardPNG/" + spriteName);
+        if (sp != null) return sp;
+
+        // 念のため
+        sp = Resources.Load<Sprite>("CardImages/" + exImageName);
+        if (sp != null) return sp;
+
+        sp = Resources.Load<Sprite>("CardImage/" + exImageName);
+        return sp;
+    }
+
+    private System.Collections.IEnumerator Co_FlipCardBackToSprite(Transform root, Sprite frontSprite, float duration)
+{
+    if (root == null) yield break;
+
+    Vector3 s0 = root.localScale;
+    float half = Mathf.Max(0.001f, duration * 0.5f);
+
+    // 1) 閉じる（Xを0へ）
+    float t = 0f;
+    while (t < half)
+    {
+        t += Time.unscaledDeltaTime;
+        float k = Mathf.Clamp01(1f - (t / half));
+        root.localScale = new Vector3(s0.x * k, s0.y, s0.z);
+        yield return null;
+    }
+
+    // 2) 表画像に差し替え（Canvas内Image想定＋保険でSpriteRendererも）
+    var img = root.GetComponentInChildren<UnityEngine.UI.Image>(true);
+    if (img != null) img.sprite = frontSprite;
+
+    var sr = root.GetComponentInChildren<SpriteRenderer>(true);
+    if (sr != null) sr.sprite = frontSprite;
+
+    // 3) 開く（Xを元へ）
+    t = 0f;
+    while (t < half)
+    {
+        t += Time.unscaledDeltaTime;
+        float k = Mathf.Clamp01(t / half);
+        root.localScale = new Vector3(s0.x * k, s0.y, s0.z);
+        yield return null;
+    }
+
+    root.localScale = s0;
+}
+    
+
+
     // ================================
     //  Networked 値に合わせて UI を補正
     // ================================

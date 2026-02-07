@@ -58,6 +58,18 @@ public class GameManager : NetworkBehaviour
 
     private const string REASON_KEY_RETIRE = "__RETIRE__";
 
+    [Header("EX_001 Win Cut-in")]
+    public GameObject ex001CutinPanel;          // 5枚Imageが並んでるパネル（位置は既に配置済みでOK）
+    public Image[] ex001CutinImages = new Image[5];
+
+    public float ex001FadeDuration = 0.1f;      // 1枚のフェード時間
+    public float ex001StepInterval = 0.05f;     // 左→右の間隔（シャシャシャ感）
+    public float ex001WaitSeconds = 10f;        // クリックがなければ自動で勝敗画面へ
+
+    public float ex001FlipDuration = 0.25f;     // 負け側：相手手札のフリップ速度（1枚）
+    public float ex001FlipInterval = 0.05f;     // フリップの間隔
+
+
 
     [Header("Initial Settings")]
     public int initialHandCount = 5;
@@ -2332,6 +2344,16 @@ public class GameManager : NetworkBehaviour
 
         RPC_GameOver(winnerIndex, reason);
     }
+    private void EndGameEx001Internal(int winnerIndex, string exImageName)
+    {
+        if (_isGameOver) return;
+        _isGameOver = true;
+
+        if (string.IsNullOrEmpty(exImageName))
+            exImageName = EX_CARD_NAME; // 保険（画像名がEX_001と同じ前提ならこれで出る）
+
+        RPC_Ex001WinSequence(winnerIndex, "EX_001が5枚揃った", exImageName);
+    }
 
     private void TryEndGameDraw(string reason)
     {
@@ -2367,27 +2389,29 @@ public class GameManager : NetworkBehaviour
         if (list == null) return false;
 
         int exCount = 0;
+        string exImageName = null;
+
         foreach (var id in list)
         {
             var data = deckManager.GetCardDataById(id);
             if (data != null && data.name == EX_CARD_NAME)
+            {
                 exCount++;
+                if (string.IsNullOrEmpty(exImageName))
+                    exImageName = data.image; // ★EX画像名（Resources/CardImages/ から読む用）
+            }
         }
 
         if (exCount >= EX_WIN_COUNT)
         {
-            EndGameInternal(playerIndex, "EX_001が5枚揃った");
+            EndGameEx001Internal(playerIndex, exImageName);
             return true;
         }
 
         return false;
     }
-
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_GameOver(int winnerIndex, string reason)
+    private void ApplyGameOverCommonSetup()
     {
-        _isGameOver = true;
-
         // 以降の操作を止める
         _lockHandCardUse = true;
 
@@ -2396,7 +2420,9 @@ public class GameManager : NetworkBehaviour
 
         if (blockWindow != null) blockWindow.gameObject.SetActive(false);
         if (defenceWindow != null) defenceWindow.gameObject.SetActive(false);
-
+    }
+    private void ShowGameOverPanelLocal(int winnerIndex, string reason)
+    {
         // 自分が勝ちか負けか判定
         var r = runner;
         if (r == null) r = FindAnyObjectByType<NetworkRunner>();
@@ -2424,8 +2450,8 @@ public class GameManager : NetworkBehaviour
                 am.PlaySfx(SfxClipId.Victory);
             else if (resultText == "LOSE")
                 am.PlaySfx(SfxClipId.Defeat);
-            // DRAW は無し（必要なら後で追加）
         }
+
         string finalReason = reason;
 
         // ★リタイア理由だけは勝者/敗者で文言を変える
@@ -2447,11 +2473,10 @@ public class GameManager : NetworkBehaviour
 
             if (gameOverReasonText != null)
                 gameOverReasonText.text = finalReason;
-
         }
         else
         {
-            // フォールバック（今まで通りEffectWindow）
+            // フォールバック（EffectWindow）
             string msg = (winnerIndex < 0)
                 ? $"引き分け：{finalReason}"
                 : $"勝利：P{winnerIndex + 1}（{finalReason}）";
@@ -2462,6 +2487,154 @@ public class GameManager : NetworkBehaviour
                 Debug.Log(msg);
         }
     }
+
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_GameOver(int winnerIndex, string reason)
+    {
+        _isGameOver = true;
+
+        ApplyGameOverCommonSetup();
+        ShowGameOverPanelLocal(winnerIndex, reason);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_Ex001WinSequence(int winnerIndex, string reason, string exImageName)
+    {
+        _isGameOver = true;
+
+        ApplyGameOverCommonSetup();
+
+        // すでに勝敗パネルが出てたら一旦閉じる（念のため）
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        StartCoroutine(Co_Ex001WinSequence(winnerIndex, reason, exImageName));
+    }
+
+    private IEnumerator Co_Ex001WinSequence(int winnerIndex, string reason, string exImageName)
+    {
+        // 負け側：相手手札の裏面をEX画像にフリップ
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+
+        int myIndex = -1;
+        if (r != null)
+            myIndex = FindPlayerIndexByRef(r.LocalPlayer);
+
+        bool iAmLoser = (winnerIndex >= 0 && myIndex >= 0 && myIndex != winnerIndex);
+
+        if (iAmLoser)
+        {
+            // 自分の PlayerManager の「相手手札裏面」を表にする
+            if (players != null && myIndex >= 0 && myIndex < players.Count && players[myIndex] != null)
+            {
+                yield return StartCoroutine(players[myIndex].Co_RevealOpponentHandAsEx(
+                    exImageName,
+                    EX_WIN_COUNT,
+                    ex001FlipDuration,
+                    ex001FlipInterval
+                ));
+            }
+        }
+
+        // 両者共通：5枚を左→右へフェード表示
+        yield return StartCoroutine(Co_PlayEx001Cutin(exImageName));
+
+        // クリック or 10秒待機
+        float elapsed = 0f;
+        while (elapsed < ex001WaitSeconds)
+        {
+            if (Input.GetMouseButtonDown(0) || Input.touchCount > 0)
+                break;
+
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (ex001CutinPanel != null)
+            ex001CutinPanel.SetActive(false);
+
+        // 最後にいつもの勝敗UI
+        ShowGameOverPanelLocal(winnerIndex, reason);
+    }
+
+    private IEnumerator Co_PlayEx001Cutin(string exImageName)
+    {
+        if (ex001CutinPanel == null || ex001CutinImages == null || ex001CutinImages.Length < EX_WIN_COUNT)
+            yield break;
+
+        var sprite = LoadEx001Sprite(exImageName);
+
+        if (sprite == null)
+        {
+            Debug.LogWarning($"EX sprite not found: CardImages/{exImageName}");
+            yield break;
+        }
+
+        ex001CutinPanel.SetActive(true);
+
+        for (int i = 0; i < EX_WIN_COUNT; i++)
+        {
+            var img = ex001CutinImages[i];
+            if (img == null) continue;
+
+            img.sprite = sprite;
+
+            var c = img.color;
+            c.a = 0f;
+            img.color = c;
+        }
+
+        for (int i = 0; i < EX_WIN_COUNT; i++)
+        {
+            var img = ex001CutinImages[i];
+            if (img == null) continue;
+
+            StartCoroutine(Co_FadeImage(img, 0f, 1f, ex001FadeDuration));
+            yield return new WaitForSecondsRealtime(ex001StepInterval);
+        }
+
+        yield return new WaitForSecondsRealtime(ex001FadeDuration);
+    }
+
+    private Sprite LoadEx001Sprite(string exImageName)
+    {
+        // exImageName が "4001" でも "card4001" でもOKにする
+        string spriteName = exImageName;
+        if (!spriteName.StartsWith("card"))
+            spriteName = spriteName+"card";
+
+        // 目的のパス（最優先）
+        var sp = Resources.Load<Sprite>("cardPNG/" + spriteName);
+        if (sp != null) return sp;
+
+        // 念のためのフォールバック（既存環境を壊さない）
+        sp = Resources.Load<Sprite>("CardImages/" + exImageName);
+        if (sp != null) return sp;
+
+        sp = Resources.Load<Sprite>("CardImage/" + exImageName);
+        return sp;
+    }
+
+
+    private IEnumerator Co_FadeImage(Image img, float from, float to, float duration)
+    {
+        if (img == null) yield break;
+
+        float t = 0f;
+        Color baseC = img.color;
+
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;
+            float a = Mathf.Lerp(from, to, Mathf.Clamp01(t / duration));
+            img.color = new Color(baseC.r, baseC.g, baseC.b, a);
+            yield return null;
+        }
+
+        img.color = new Color(baseC.r, baseC.g, baseC.b, to);
+    }
+
 
 
     public void OnReturnHomeClicked()
