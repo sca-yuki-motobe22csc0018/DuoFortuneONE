@@ -46,6 +46,8 @@ public class DiscardManager : MonoBehaviour
     private bool isOpen = false;
     private bool isRecoverMode = false;
     private int recoverCount = 0;
+    private int _recoverSessionId = -1;
+
     private PlayerManager recoverTargetPlayer;
 
     private List<CardGenerator.CardData> selectedCards = new List<CardGenerator.CardData>();
@@ -264,10 +266,15 @@ public class DiscardManager : MonoBehaviour
     }
 
 
-    // 回収モード開始
-    // 回収モード開始
     public void StartRecoverMode(PlayerManager player, int count)
     {
+        StartRecoverMode(player, count, -1);
+    }
+
+    public void StartRecoverMode(PlayerManager player, int count, int sessionId)
+    {
+        _recoverSessionId = sessionId;
+
         // 捨て札ウインドウが開いていたら閉じる（画面は分離）
         if (isOpen)
         {
@@ -528,7 +535,8 @@ public class DiscardManager : MonoBehaviour
             .Select(d => d.id)
             .ToArray();
 
-        gm.RPC_RequestRecoverDiscard(recoverTargetPlayer.Object.InputAuthority, recoverIds);
+        gm.RPC_RequestRecoverDiscard(recoverTargetPlayer.Object.InputAuthority, _recoverSessionId, recoverIds);
+
 
         isRecoverComplete = true;
         EndRecoverMode();
@@ -558,7 +566,7 @@ public class DiscardManager : MonoBehaviour
 
         if (recoverLimitText != null)
             recoverLimitText.gameObject.SetActive(false); // ← 非表示
-
+        _recoverSessionId = -1;
         EffectProcessWindow.Instance.ContinueProcess();
     }
 }

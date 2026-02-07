@@ -247,8 +247,9 @@ public class BlockWindow : MonoBehaviour
 
             if (handObj != null)
             {
-                currentPlayer.handManager.RemoveCard(handObj);
-                Destroy(handObj);
+                // ★BlockはHost側が ConsumeHandCardToDiscardHost で捨て札同期するので、ここでは捨て札送信しない
+                currentPlayer.handManager.RemoveCardByIdNoDiscard(selectedBlockData.id);
+
 
                 // 手札枚数表示がズレるならこれも（存在する前提）
                 currentPlayer.UpdateHandCountUI();

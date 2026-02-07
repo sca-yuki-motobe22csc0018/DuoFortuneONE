@@ -101,7 +101,12 @@ public class CardGenerator : MonoBehaviour,
     private static int s_localProcessingTokenSeed = 0;
     private int _myProcessingToken = 0;
 
-
+    private static int s_recoverSessionSeq = 0;
+    private static int NextRecoverSessionId()
+    {
+        s_recoverSessionSeq++;
+        return s_recoverSessionSeq;
+    }
     void Start()
     {
         mainCam = Camera.main;
@@ -1236,23 +1241,28 @@ public class CardGenerator : MonoBehaviour,
     private IEnumerator DoRecoverDiscardRoutine(int x)
     {
         var discard = FindAnyObjectByType<DiscardManager>();
-        if (discard == null)
-        {
-            yield break;
-        }
+        if (discard == null) yield break;
+
+        var gm = GameManager.Instance ?? FindAnyObjectByType<GameManager>();
 
         // メッセージを表示
         yield return EffectProcessWindow.Instance.ShowProcessAuto($"捨て札から {x} 枚回収します。", 0.6f, false);
 
-        // 回収モード開始
-        discard.StartRecoverMode(player, x);
+        // ★sessionId を作って回収モード開始
+        int sid = NextRecoverSessionId();
+        discard.StartRecoverMode(player, x, sid);
 
-        // ★ OKボタンが押されるまで待機
+        // OKボタンが押されるまで待機
         yield return new WaitUntil(() => discard.IsRecoverComplete);
 
-        // （OKが押されたら次の処理に進む）
-        yield break;
+        // ★ここが核心：Host同期が返ってくるまで待つ（ChoiceMultiの連打でも壊れない）
+        if (gm != null)
+        {
+            while (gm.LocalRecoverResolvedSessionId != sid)
+                yield return null;
+        }
     }
+
 
     private IEnumerator DoEndTurnRoutine()
     {

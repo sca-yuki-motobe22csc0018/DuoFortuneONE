@@ -596,7 +596,6 @@ public class BattleManager : MonoBehaviour
         {
             if (!hasAttack)
             {
-                SendBlockToDiscard(defender, blockCard);
             }
             else
             {
@@ -604,7 +603,6 @@ public class BattleManager : MonoBehaviour
                     yield return StartCoroutine(EffectProcessWindow.Instance.ShowProcessAuto("反撃完了。Blockカードを捨て札へ送ります。", 1.0f, false));
                 else
                     yield return new WaitForSeconds(1.0f);
-                SendBlockToDiscard(defender, blockCard);
             }
         }
 

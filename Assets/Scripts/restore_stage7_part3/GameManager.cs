@@ -131,6 +131,9 @@ public class GameManager : NetworkBehaviour
     private int _localSealSessionId = -1;
     private int _localSealResolvedSessionId = -1;
 
+    // ===== 捨て札回収 同期完了待ち（ローカル）=====
+    private int _localRecoverResolvedSessionId = -1;
+    public int LocalRecoverResolvedSessionId => _localRecoverResolvedSessionId;
 
 
     public bool IsCostSealed(int cost)
@@ -1906,108 +1909,121 @@ public class GameManager : NetworkBehaviour
     // ============================================================
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestRecoverDiscard(PlayerRef requester, int[] recoverIds)
+    public void RPC_RequestRecoverDiscard(PlayerRef requester, int sessionId, int[] recoverIds)
     {
         if (!Object.HasStateAuthority) return;
-        if (recoverIds == null || recoverIds.Length == 0) return;
+        if (recoverIds == null) recoverIds = new int[0];
 
         if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
         if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
-        if (deckManager == null || discardManager == null) return;
+        if (deckManager == null || discardManager == null)
+        {
+            // ★失敗でも「完了通知」は返す（待ちが止まらないように）
+            RPC_SyncRecoverDiscard(-1, sessionId, requester, new int[0]);
+            return;
+        }
 
         int playerIndex = FindPlayerIndexByRef(requester);
-        if (playerIndex < 0 || playerIndex >= players.Count) return;
+        if (playerIndex < 0 || playerIndex >= players.Count)
+        {
+            RPC_SyncRecoverDiscard(-1, sessionId, requester, new int[0]);
+            return;
+        }
 
-        // Hostが捨て札から実在する分だけ確定して回収させる
+        // Hostが捨て札から実在する分だけ確定して回収させる（※ここでは消さない）
         List<int> accepted = new List<int>();
+
+        // idごとの残数を作る（重複ID対応）
+        Dictionary<int, int> remain = new Dictionary<int, int>();
+        foreach (var d in discardManager.discardDataList)
+        {
+            if (d == null) continue;
+            if (remain.TryGetValue(d.id, out int c)) remain[d.id] = c + 1;
+            else remain[d.id] = 1;
+        }
 
         foreach (int id in recoverIds)
         {
-            var toRemove = discardManager.discardDataList.FirstOrDefault(d => d != null && d.id == id);
-            if (toRemove != null)
+            if (remain.TryGetValue(id, out int c) && c > 0)
             {
-                // ★重要：Host側も RemoveFromDiscardById 経由で消す（UI/内部状態の更新を揃える）
-                discardManager.RemoveFromDiscardById(id);
                 accepted.Add(id);
+                remain[id] = c - 1; // ★このIDを1枚分確保
             }
         }
 
+#if UNITY_EDITOR
+        Debug.Log($"[RecoverDiscard][Host] req={string.Join(",", recoverIds)} accepted={string.Join(",", accepted)} discardTotal={discardManager.discardDataList.Count}");
+#endif
 
-        if (accepted.Count == 0) return;
+        // accepted が空でも「完了通知」は返す（待ちが止まらないように）
+        if (accepted.Count > 0)
+        {
+            // Hostの手札IDリストにも反映（EX判定のため）
+            var list = GetHostHandIdList(playerIndex);
+            foreach (var id in accepted) list.Add(id);
 
-        // ▼追加：Hostの手札IDリストにも反映（EX判定のため）
-        var list = GetHostHandIdList(playerIndex);
-        foreach (var id in accepted)
-            list.Add(id);
+            var pm = players[playerIndex];
+            if (pm != null) pm.handCount = list.Count;
 
-        var pm = players[playerIndex];
-        if (pm != null) pm.handCount = list.Count;
+            TryCheckEx001Win(playerIndex);
+        }
 
-        // ▼追加：EX_001勝利チェック（手札に入った瞬間）
-        TryCheckEx001Win(playerIndex);
-
-        RPC_SyncRecoverDiscard(playerIndex, accepted.ToArray());
+        // ★成功/失敗どちらでも返す（成功は accepted、失敗は空配列）
+        RPC_SyncRecoverDiscard(playerIndex, sessionId, requester, accepted.ToArray());
     }
 
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    public void RPC_SyncRecoverDiscard(int playerIndex, int[] recoverIds)
+    public void RPC_SyncRecoverDiscard(int playerIndex, int sessionId, PlayerRef requester, int[] recoverIds)
     {
+        // ★最優先：待機解除（途中returnしても止まらない）
+        var r = runner;
+        if (r == null) r = FindAnyObjectByType<NetworkRunner>();
+        if (r != null && r.LocalPlayer == requester)
+            _localRecoverResolvedSessionId = sessionId;
+
         if (recoverIds == null || recoverIds.Length == 0) return;
 
-        // ★ 参照が切れても耐えるように保険（Inactiveでも拾う）
         if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
         if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
-
-        if (discardManager == null)
-        {
-            var all = Resources.FindObjectsOfTypeAll<DiscardManager>();
-            if (all != null && all.Length > 0) discardManager = all[0];
-        }
 
         if (deckManager == null)
         {
             var all = Resources.FindObjectsOfTypeAll<DeckManager>();
             if (all != null && all.Length > 0) deckManager = all[0];
         }
-
-        // ★SFX：捨て札回収（両者）
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, recoverIds.Length);
-
-        // まず捨て札から削除（全員で同じ結果にする：UIのゴースト防止）
-        if (discardManager != null)
+        if (discardManager == null)
         {
-            foreach (int id in recoverIds)
-            {
-                discardManager.RemoveFromDiscardById(id);
-            }
+            var all = Resources.FindObjectsOfTypeAll<DiscardManager>();
+            if (all != null && all.Length > 0) discardManager = all[0];
         }
 
-        // ▼追加：回収したカードは両者に表示
-        if (CardMovePopupManager.Instance != null)
-        {
-            CardMovePopupManager.Instance.ShowRecoverCards(recoverIds);
-        }
+        if (deckManager == null || discardManager == null) return;
 
-        // 手札へ追加（実カードは “本人のクライアントだけ” 追加）
-        PlayerManager pm = null;
-        if (players != null && playerIndex >= 0 && playerIndex < players.Count)
-            pm = players[playerIndex];
+        // まず捨て札から削除（全員同じ結果に）
+        foreach (int id in recoverIds)
+            discardManager.RemoveFromDiscardById(id);
 
-        if (pm != null && pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null && deckManager != null)
+        // 手札の実体追加は「本人だけ」
+        if (players == null || playerIndex < 0 || playerIndex >= players.Count) return;
+
+        var pm = players[playerIndex];
+        if (pm != null && pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null)
         {
             foreach (int id in recoverIds)
             {
                 var data = deckManager.GetCardDataById(id);
-                if (data == null) continue;
-
-                pm.handManager.AddCardFromData(data);
+                if (data != null) pm.handManager.AddCardFromData(data);
             }
 
             pm.handManager.UpdateCardPositions();
-            pm.UpdateHandCountUI(); // 自分画面の即時反映
+            pm.UpdateHandCountUI();
         }
+
+        if (CardMovePopupManager.Instance != null)
+            CardMovePopupManager.Instance.ShowRecoverCards(recoverIds);
     }
+
 
 
 
