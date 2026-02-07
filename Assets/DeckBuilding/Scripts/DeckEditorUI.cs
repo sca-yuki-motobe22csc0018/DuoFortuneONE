@@ -35,6 +35,28 @@ public class DeckEditorUI : MonoBehaviour
     public AudioClip seCenter; // センター用
     public AudioClip seRight;  // ライト用
 
+    //-------------------------------------------------------
+    // デッキ表示をカードID順に並べ替え
+    //-------------------------------------------------------
+    void SortCurrentDeckById()
+    {
+        currentDeck.Sort(CompareCardNumber);
+    }
+
+    int CompareCardNumber(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a)) return string.IsNullOrEmpty(b) ? 0 : 1;
+        if (string.IsNullOrEmpty(b)) return -1;
+
+        bool aIsInt = int.TryParse(a, out int ai);
+        bool bIsInt = int.TryParse(b, out int bi);
+
+        if (aIsInt && bIsInt) return ai.CompareTo(bi);
+        if (aIsInt != bIsInt) return aIsInt ? -1 : 1;
+
+        return string.CompareOrdinal(a, b);
+    }
+
 
     void Start()
     {
@@ -81,6 +103,8 @@ public class DeckEditorUI : MonoBehaviour
             currentDeck = new List<string>();
         else
             currentDeck = new List<string>(deck.cardNumbers);
+        //修正
+        SortCurrentDeckById();
     }
 
     //-------------------------------------------------------
@@ -180,6 +204,7 @@ public class DeckEditorUI : MonoBehaviour
     {
         foreach (Transform t in deckParent)
             Destroy(t.gameObject);
+        SortCurrentDeckById();
 
         foreach (var num in currentDeck)
         {
@@ -233,12 +258,16 @@ public class DeckEditorUI : MonoBehaviour
         }
 
         currentDeck.Add(card.number);
+        //修正
+        SortCurrentDeckById();
         RefreshDeckDisplay();
     }
 
     public void RemoveCardFromDeck(CardInfo card)
     {
         currentDeck.Remove(card.number);
+        //修正
+        SortCurrentDeckById();
         RefreshDeckDisplay();
     }
 
@@ -254,6 +283,9 @@ public class DeckEditorUI : MonoBehaviour
             deckCountText.text = "デッキ枚数が30ではありません";
             return;
         }
+
+        //修正
+        SortCurrentDeckById();
 
         DeckSaveManager.Instance.SetDeck(
             deckIndex,
