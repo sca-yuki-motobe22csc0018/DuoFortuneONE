@@ -1926,10 +1926,12 @@ public class GameManager : NetworkBehaviour
             var toRemove = discardManager.discardDataList.FirstOrDefault(d => d != null && d.id == id);
             if (toRemove != null)
             {
-                discardManager.discardDataList.Remove(toRemove);
+                // ★重要：Host側も RemoveFromDiscardById 経由で消す（UI/内部状態の更新を揃える）
+                discardManager.RemoveFromDiscardById(id);
                 accepted.Add(id);
             }
         }
+
 
         if (accepted.Count == 0) return;
 
@@ -1950,34 +1952,35 @@ public class GameManager : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_SyncRecoverDiscard(int playerIndex, int[] recoverIds)
     {
+        if (recoverIds == null || recoverIds.Length == 0) return;
+
+        // ★ 参照が切れても耐えるように保険（Inactiveでも拾う）
         if (deckManager == null) deckManager = FindAnyObjectByType<DeckManager>();
         if (discardManager == null) discardManager = FindAnyObjectByType<DiscardManager>();
-        if (deckManager == null || discardManager == null) return;
 
-        if (players == null || players.Count < 2) return;
-        if (playerIndex < 0 || playerIndex >= players.Count) return;
+        if (discardManager == null)
+        {
+            var all = Resources.FindObjectsOfTypeAll<DiscardManager>();
+            if (all != null && all.Length > 0) discardManager = all[0];
+        }
 
-        var pm = players[playerIndex];
-        if (pm == null || pm.handManager == null) return;
+        if (deckManager == null)
+        {
+            var all = Resources.FindObjectsOfTypeAll<DeckManager>();
+            if (all != null && all.Length > 0) deckManager = all[0];
+        }
 
         // ★SFX：捨て札回収（両者）
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySfxBurst(SfxClipId.CardMove, recoverIds.Length);
 
-        foreach (int id in recoverIds)
+        // まず捨て札から削除（全員で同じ結果にする：UIのゴースト防止）
+        if (discardManager != null)
         {
-            // まず捨て札から削除（自分のクライアントは既に除外済みでもOK）
-            discardManager.RemoveFromDiscardById(id);
-
-            var data = deckManager.GetCardDataById(id);
-            if (data == null) continue;
-
-            // 手札へ追加（本人の端末だけ）
-            if (pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null)
+            foreach (int id in recoverIds)
             {
-                pm.handManager.AddCardFromData(data);
+                discardManager.RemoveFromDiscardById(id);
             }
-
         }
 
         // ▼追加：回収したカードは両者に表示
@@ -1985,7 +1988,27 @@ public class GameManager : NetworkBehaviour
         {
             CardMovePopupManager.Instance.ShowRecoverCards(recoverIds);
         }
+
+        // 手札へ追加（実カードは “本人のクライアントだけ” 追加）
+        PlayerManager pm = null;
+        if (players != null && playerIndex >= 0 && playerIndex < players.Count)
+            pm = players[playerIndex];
+
+        if (pm != null && pm.Object != null && pm.Object.HasInputAuthority && pm.handManager != null && deckManager != null)
+        {
+            foreach (int id in recoverIds)
+            {
+                var data = deckManager.GetCardDataById(id);
+                if (data == null) continue;
+
+                pm.handManager.AddCardFromData(data);
+            }
+
+            pm.handManager.UpdateCardPositions();
+            pm.UpdateHandCountUI(); // 自分画面の即時反映
+        }
     }
+
 
 
 
